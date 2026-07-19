@@ -1,0 +1,62 @@
+# team.params — переносимая анкета адаптации команды агентов (шаг 0 пайплайна)
+# Формат: KEY="value" (строго в кавычках; это config, НЕ shell — файл не source'ить).
+# repo-safe-v2 можно трекать: буквальные секреты/пути станции запрещены; локальные значения —
+# только фиксированные ${ENV}-ссылки ниже или '-'. Полное описание: ADAPTATION_PIPELINE.md §4.
+
+PARAMS_PROFILE="repo-safe-v2"
+
+PROJECT_NAME="LoftNavigator"
+PROJECT_KEY="LOFTNAV"
+PROJECT_ROOT="."          # V2: canonical root определяется git'ом; абсолютный путь не хранится
+GH_REPO="-"               # локально сейчас; '-' = канонический GitHub-дефолт, задать при заливке на GitHub
+LIVE_URL="http://localhost:3000"
+STACK="Python 3.12 (ingestion/transform, CLI) · Trino + Iceberg + MinIO + PostgreSQL (JDBC catalog) · Grafana · Docker Compose"
+TEST_CMD_BACKEND="pytest -q && ruff check ."
+TEST_CMD_FRONTEND="-"
+DEPLOY_CMD="docker compose up -d --build"
+TEST_USERS_DOC="docs/test-users.md"
+EVIDENCE_ROOT="docs/audit-evidence"
+AGENT_LANG="ru"
+MODEL="opus"
+AGENTS="kulibin,renata,semiglazka,pushkin"
+
+# --- issue-backend / git (tracker-режим, см. ADAPTATION_PIPELINE.md §10) ---
+# ISSUE_BACKEND: github (тикеты в GitHub-issues, gh) | tracker (внешний трекер через Пристава, xt)
+ISSUE_BACKEND="github"
+# GIT_REMOTE: где живёт код (push/PR). '-' = origin из GH_REPO. Для on-prem — внутренний remote.
+GIT_REMOTE="-"
+# Следующие 3 нужны ТОЛЬКО при ISSUE_BACKEND="tracker" (иначе игнорируются):
+TRACKER_TOOL="-"          # repo-relative CLI уже в target; '-' = scripts/xtracker/xt.py, но файл обязан существовать
+TRACKER_QUEUE="-"         # обязательно при tracker: safe token [A-Za-z0-9][A-Za-z0-9_.-]{0,127}, напр. BOARD
+TRACKER_TOKEN_PATH="${XTRACKER_TOKEN_PATH}" # V2: env хранит ПУТЬ к token-файлу; сам token — XTRACKER_TOKEN/secret-store
+TRACKER_HOST="-"          # хост трекера, напр. tracker.example.com (плейсхолдер {{TRACKER_HOST}})
+# Mode-параметры intake (не плейсхолдеры): одинаково bindятся params/provenance и могут
+# переопределяться только exact matching ENV текущего запуска.
+INTAKE_TICKET_TYPE="task"
+INTAKE_TICKET_PRIORITY="normal"
+
+# --- корпоративный SSO (§11, доктрина Product_agents/SSO_AUTH_GUIDE.md) ---
+# Для продуктов X5 стандарт — "X5 Ключ". '-' = нет корпоративного SSO (доктрина спит,
+# но секция Authentication & Access в спеках остаётся обязательной).
+SSO_PROVIDER="-"          # имя корпоративного SSO, напр. "X5 Ключ" ({{SSO_PROVIDER}})
+SSO_ISSUER_URL="-"        # issuer OIDC-провайдера, напр. https://auth.x5.ru ({{SSO_ISSUER_URL}})
+SSO_ADMIN_GROUP="-"       # группа каталога (AD) для admin-роли, напр. X5_Portal_Admins ({{SSO_ADMIN_GROUP}})
+
+# --- де-локализация (Model B, §7): значения для плейсхолдеров framework-контента ---
+# Пустой/'-' = плейсхолдер ОСТАЁТСЯ в адаптированных файлах (локализуй осознанно на Шаге 2).
+SSH_TARGET="${SSH_TARGET}" # V2: user@host приходит из env; {{SSH_HOST}} рендерится как ${SSH_HOST}
+CONTAINER_PREFIX="loftnav" # префикс docker-контейнеров ({{CONTAINER_PREFIX}}-postgres-1)
+TEST_EMAIL_DOMAIN="-"     # домен тест-пользователей, напр. test.example.com ({{TEST_EMAIL_DOMAIN}})
+TEST_EMAIL_DOMAIN_ALT="-" # второй тенант для cross-tenant проверок ({{TEST_EMAIL_DOMAIN_ALT}})
+TEST_PASSWORD="-"         # legacy-поле: в V2 только '-'; {{TEST_PASSWORD}} → ${<TEST_PASSWORD_ENV>}
+TEST_PASSWORD_ENV="TEST_PASSWORD" # ИМЯ env-переменной, не пароль; grammar [A-Z_][A-Z0-9_]*
+GIT_TOKEN_PATH="${GIT_TOKEN_PATH}" # V2: env хранит путь; literal token здесь запрещён
+HOME_DIR="${HOME}"        # V2: символическая ссылка; домашний путь станции не материализуется
+
+# --- доменный профиль (spec 022, ADAPTATION_PIPELINE.md §4/§7) ---
+# Три параметра ТРЁХ разных классов (аудит C3/W1) — не путать между собой:
+# BROWSER_WORKFLOW = параметр РЕЖИМА, TEST_ROLES = чек-лист-параметр Шага 2,
+# INTAKE_DOMAIN_HINT = единственный из трёх Model-B-плейсхолдер (§7).
+BROWSER_WORKFLOW="y"      # QA-агенты тестируют Grafana-дашборды (localhost:3000) и консоль MinIO (localhost:9001)
+TEST_ROLES="-"            # single-user платформа: ролей продукта нет
+INTAKE_DOMAIN_HINT="ошибки загрузки/качества данных — bugfix; новые источники, витрины, дашборды, экспорт — feature"

@@ -1,0 +1,4 @@
+# BEGIN LV_AGENT_TEAM managed
+docs/ops-journal.md merge=union
+specs/*/audit.md merge=union
+# END LV_AGENT_TEAM managed
