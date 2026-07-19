@@ -40,3 +40,23 @@
 | 2026-07-19T21:31:13Z | agent:kulibin:done | u1-u4 DONE; пины trino:483/pg16.14/minio 2025-09/grafana 12.3.8; smoke 3 passed x3 цикла; отклонение: Trino auth через HTTPS:8443 dual-port; тёплый up 34-50с, smoke до 6с |
 | 2026-07-19T21:31:44Z | confidence:stage-3-dev | level=green reason=сам прогнал: smoke 3 passed, pytest 3 passed, ruff clean, compose ps 4/4 healthy, config-проверки портов/latest/секретов; двойная верификация с kulibin на разных осях; units 4/4 done |
 | 2026-07-19T21:31:44Z | stage-3-dev:done | - |
+| 2026-07-19T21:33:32Z | stage-4-quality:start | checkpoint=6512bfc96468f4ea90f06f0df193712a8e44e330 |
+| 2026-07-19T21:34:07Z | agent:req-validator | stage-4 quality: независимая проверка 001 |
+| 2026-07-19T21:34:08Z | agent:test-engineer | stage-4 quality: независимая проверка 001 |
+| 2026-07-19T21:34:08Z | agent:code-reviewer | stage-4 quality: независимая проверка 001 |
+| 2026-07-19T21:34:09Z | agent:tech-writer | stage-4 quality: независимая проверка 001 |
+| 2026-07-19T21:37:31Z | agent:test-engineer:done | 5/6 PASS, 1 FAIL: smoke liveness включает Grafana как блокирующую - нарушение I-8 (при docker stop grafana smoke красный). Auth 401/200/TLS-only подтверждены, порты/пины/секреты чисто, smoke 6с |
+| 2026-07-19T21:37:48Z | agent:req-validator:done | матрица 27/27 DONE (15 FR + 6 NFR + 6 SC); ремарка: destructive-цикл не переигрывал (read-only), stale docstring в trino_client |
+| 2026-07-19T21:37:48Z | agent:code-reviewer:done | T1-T10 все применены, 4 CRITICAL аудита закрыты в коде; CRIT 0, WARN 1 (stale docstring trino_client про HTTP при факте HTTPS), INFO 5 |
+| 2026-07-19T21:39:24Z | stage-3-dev:invalidated | reset from stage-3-dev |
+| 2026-07-19T21:39:24Z | stage-4-quality:invalidated | reset from stage-3-dev |
+| 2026-07-19T21:39:24Z | stage-3-dev:start | - |
+| 2026-07-19T21:39:42Z | agent:tech-writer:done | architecture.md сверен построчно: CRIT 0, WARN 3 (stale docstring, нет quickstart, нет TLS-warning note), INFO 4; 3 кандидата в pipeline-rules |
+| 2026-07-19T21:39:42Z | agent:kulibin:start | fix-цикл stage-3: grafana non-blocking в smoke (I-8), docstring, quickstart+TLS-note в architecture.md |
+| 2026-07-19T21:44:02Z | unit-done | u1-compose-core |
+| 2026-07-19T21:44:03Z | unit-done | u2-trino-catalog |
+| 2026-07-19T21:44:05Z | unit-done | u3-python-smoke |
+| 2026-07-19T21:44:06Z | unit-done | u4-make-docs |
+| 2026-07-19T21:44:07Z | agent:kulibin:done | fix-цикл: smoke разделён на data-plane (блокирующий) и grafana (non-blocking, I-8); docstring исправлен; architecture.md +quickstart/TLS-note/дата замеров; верифицировано дважды |
+| 2026-07-19T21:44:08Z | confidence:stage-3-dev | level=green reason=fix-цикл верифицирован лично: grafana-down smoke 4 passed+warning (I-8), pytest 4 passed, ruff clean, diff ровно 3 файла; units 4/4 переподтверждены |
+| 2026-07-19T21:44:08Z | stage-3-dev:done | - |

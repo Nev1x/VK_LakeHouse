@@ -41,8 +41,11 @@ def get_connection(
 ) -> trino.dbapi.Connection:
     """DBAPI-соединение с Trino по кредам из окружения.
 
-    host/port переопределяемы через TRINO_HOST/TRINO_PORT (по умолчанию loopback 127.0.0.1:8080).
-    Аутентификация — BasicAuthentication поверх HTTP (loopback-MVP без TLS, FR-015).
+    host/port переопределяемы через TRINO_HOST/TRINO_PORT (по умолчанию loopback 127.0.0.1:8080,
+    где host-порт 8080 маппится на HTTPS-порт контейнера 8443).
+    Аутентификация — BasicAuthentication поверх HTTPS с self-signed cert и verify=False
+    (password auth Trino требует TLS; доверенный периметр = локальная машина, FR-015 — уточнение
+    stage-3: план закладывал HTTP, но Trino отклоняет пароль по небезопасному каналу).
     request_timeout ограничивает сетевую проверку (не зависание, I-8/NFR-001).
     """
     host = os.environ.get("TRINO_HOST", "127.0.0.1")

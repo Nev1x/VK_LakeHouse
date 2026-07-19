@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import uuid
+import warnings
 
 import pytest
 import requests
@@ -25,20 +26,45 @@ def _host_url(scheme: str, port_env: str, default_port: str, path: str) -> str:
     return f"{scheme}://127.0.0.1:{port}{path}"
 
 
-def test_services_liveness() -> None:
-    """Liveness опубликованных сервисов (US-5). Postgres проверяется косвенно round-trip'ом."""
-    # (url, verify) — Trino публикуется по HTTPS (self-signed), MinIO/Grafana по HTTP.
-    checks = {
-        "minio": (_host_url("http", "MINIO_API_PORT", "9000", "/minio/health/ready"), True),
-        "trino": (_host_url("https", "TRINO_PORT", "8080", "/v1/info"), False),
-        "grafana": (_host_url("http", "GRAFANA_PORT", "3000", "/api/health"), True),
-    }
-    for name, (url, verify) in checks.items():
-        try:
-            resp = requests.get(url, timeout=_HTTP_TIMEOUT, verify=verify)
-        except requests.RequestException as exc:
-            pytest.fail(f"{name}: сервис недоступен ({url}): {exc}")
-        assert resp.status_code == 200, f"{name}: {url} вернул {resp.status_code}"
+def _probe(name: str, url: str, verify: bool) -> None:
+    """Проверяет health одного сервиса; падает assert'ом при недоступности/не-200."""
+    try:
+        resp = requests.get(url, timeout=_HTTP_TIMEOUT, verify=verify)
+    except requests.RequestException as exc:
+        pytest.fail(f"{name}: сервис недоступен ({url}): {exc}")
+    assert resp.status_code == 200, f"{name}: {url} вернул {resp.status_code}"
+
+
+def test_data_plane_liveness() -> None:
+    """Liveness data-плоскости (US-5) — ОБЯЗАТЕЛЬНАЯ. Postgres проверяется косвенно round-trip'ом.
+
+    Trino публикуется по HTTPS (self-signed), MinIO по HTTP.
+    """
+    _probe("minio", _host_url("http", "MINIO_API_PORT", "9000", "/minio/health/ready"), True)
+    _probe("trino", _host_url("https", "TRINO_PORT", "8080", "/v1/info"), False)
+
+
+def test_grafana_liveness_non_blocking() -> None:
+    """Grafana — НЕблокирующая проверка (устав I-8: падение Grafana не блокирует data-плоскость).
+
+    Grafana доступна → её /api/health всё же проверяется (смысл теста сохранён);
+    Grafana недоступна/не-200 → предупреждение, suite остаётся зелёным.
+    """
+    url = _host_url("http", "GRAFANA_PORT", "3000", "/api/health")
+    try:
+        resp = requests.get(url, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        warnings.warn(
+            f"I-8: не блокирует — Grafana недоступна ({url}): {exc}; "
+            "data-плоскость проверяется отдельно",
+            stacklevel=2,
+        )
+        return
+    if resp.status_code != 200:
+        warnings.warn(
+            f"I-8: не блокирует — Grafana {url} вернул {resp.status_code} (не 200)",
+            stacklevel=2,
+        )
 
 
 def test_iceberg_roundtrip(retry) -> None:

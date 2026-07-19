@@ -5,7 +5,7 @@
 - Scope: feature
 - Ticket: —
 - Started: 2026-07-19T19:14:20Z
-- Updated: 2026-07-19T21:31:44Z
+- Updated: 2026-07-19T21:44:08Z
 - Quality-HEAD: —
 
 ## Stages
@@ -25,7 +25,7 @@
 
 - confidence-stage-1-creative: green — spec-lint OK (10/10 секций); 4 отчёта субагентов консолидированы в spec.md и stage-1-creative.md; спорные решения (Grafana в 001, loopback-порты) явно вынесены на гейт stage-2 (2026-07-19T19:21:38Z)
 - confidence-stage-2-audit: green — spec-lint OK 10/10, plan-lint OK (traceability 21/21, coherence 0), constitution re-check 0/0/0 - все прогнал сам в сессии; Approve владельца получен (порты+Grafana ратифицированы) (2026-07-19T20:42:33Z)
-- confidence-stage-3-dev: green — сам прогнал: smoke 3 passed, pytest 3 passed, ruff clean, compose ps 4/4 healthy, config-проверки портов/latest/секретов; двойная верификация с kulibin на разных осях; units 4/4 done (2026-07-19T21:31:44Z)
+- confidence-stage-3-dev: green — fix-цикл верифицирован лично: grafana-down smoke 4 passed+warning (I-8), pytest 4 passed, ruff clean, diff ровно 3 файла; units 4/4 переподтверждены (2026-07-19T21:44:08Z)
 - confidence-stage-4-quality: —
 
 > Файл ведёт `scripts/pipeline-state.sh` — чекбоксы, гейты и confidence руками не редактируются;

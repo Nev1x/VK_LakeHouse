@@ -5,6 +5,25 @@
 > Фичи 002–006 **дописывают** свои разделы, не переписывая этот. Источник истины поведения —
 > `docker-compose.yml`, `infra/`, `Makefile`, `pyproject.toml`. Устав: `docs/constitution.md`.
 
+## 0. Quickstart: первый запуск с нуля
+
+```sh
+cp .env.example .env                       # 1. создать локальный .env (в git не попадает)
+# 2. заполнить секреты в .env реальными значениями, например:
+#    MINIO_ROOT_PASSWORD / POSTGRES_PASSWORD / TRINO_PASSWORD / TRINO_INTERNAL_SECRET /
+#    TRINO_KEYSTORE_PASSWORD / GRAFANA_ADMIN_PASSWORD  →  openssl rand -hex 24
+make up                                    # 3. поднять стек до healthy + bootstrap namespace'ов
+make smoke                                 # 4. доказать round-trip Trino → Iceberg → MinIO
+```
+
+Требуется Docker Desktop (VM ≥ 8 GB) и `python3`+`uv` (либо `python3 -m venv`) для `.venv`.
+`make up` без `.env` падает с понятным сообщением, а не поднимает стек с пустыми кредами.
+
+> **Trino UI по HTTPS с self-signed сертификатом.** `https://127.0.0.1:8080` (и MinIO/Grafana по
+> HTTP) — при открытии Trino в браузере будет предупреждение о недоверенном сертификате. Это
+> **норма** для loopback-MVP (FR-015): сертификат self-signed, доверенный периметр = локальная
+> машина. Клиенты (smoke, loader 002, Grafana 005) подключаются с `verify=False`.
+
 ## 1. Топология
 
 Локальный стек Docker Compose (project `loftnav`), 5 контейнеров на трёх сетях:
@@ -28,6 +47,10 @@
 
 Цепочка данных: `Trino (Iceberg-коннектор) → JDBC-каталог в PostgreSQL (метаданные) → warehouse в
 MinIO (данные, native S3)`. Round-trip доказан `make smoke`.
+
+`minio-init` — **one-shot** init-контейнер (создаёт bucket'ы и завершается): в обычном
+`docker compose ps` его нет, он виден в `docker compose ps -a` со статусом `Exited (0)` — это норма,
+а не сбой.
 
 ## 2. Версии образов (пины, `:latest` запрещён — FR-001/NFR-006)
 
@@ -161,6 +184,9 @@ CPU-лимиты намеренно не заданы (медленнее хол
 
 Первый (холодный) `make up` с pull образов — дольше на время загрузки (~несколько минут,
 зависит от сети); healthcheck'и с `start_period` (Trino 90 с под холодный JVM) не «ложно падают».
+
+_Дата замера: 2026-07-20 (машина владельца, 8.2 GB VM, тёплый кэш образов)._
+**Переизмерить при изменении состава стека** (новый сервис, смена лимитов/heap, апгрейд образов).
 
 ## 12. Make-цели (BSD/macOS-совместимо)
 

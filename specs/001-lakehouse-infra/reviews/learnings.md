@@ -55,3 +55,10 @@
     беспарольный в пределах compose-сетей.
 - **Open questions:**
   - Ужесточение internal-Trino и least-privilege MinIO — отдельные фичи бэклога?
+
+## stage-3 (fix-цикл после первого прохода stage-4)
+
+- **Deviations:** pre-H FAIL вернул в S3 по правилу V3; re-open сбросил unit-чекбоксы —
+  переподтверждены после фиксов.
+- **Learnings:** негативные сценарии (I-8: подсистема выключена) должны попадать в smoke уже на
+  первом проходе stage-3 — Test Engineer stage-4 не должен быть первым, кто гасит Grafana.
