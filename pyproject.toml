@@ -1,10 +1,13 @@
 [project]
 name = "loftnav"
-version = "0.1.0"
-description = "LoftNavigator LakeHouse platform (feature 001 — base infra)"
+version = "0.2.0"
+description = "LoftNavigator LakeHouse platform (feature 002 — universal ingestion)"
 requires-python = ">=3.12"
 dependencies = [
     "trino==0.338.0",
+    "pandas==3.0.3",
+    "openpyxl==3.1.5",
+    "boto3==1.43.51",
 ]
 
 [project.optional-dependencies]
@@ -12,7 +15,13 @@ dev = [
     "pytest==9.1.1",
     "ruff==0.15.22",
     "bcrypt==5.0.0",
+    # requests используется smoke (001) и integration-тестами напрямую — явный dev-пин
+    # (в 001 доезжал транзитивно через trino-клиент, пробел закрыт здесь).
+    "requests==2.34.2",
 ]
+
+[project.scripts]
+loftnav = "loftnav.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

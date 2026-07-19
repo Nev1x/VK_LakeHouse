@@ -1,7 +1,8 @@
-"""Идемпотентный bootstrap namespace'ов medallion в каталоге Iceberg (FR-006).
+"""Идемпотентный bootstrap namespace'ов в каталоге Iceberg (FR-006 / 002 FR-009).
 
-Создаёт схемы iceberg.bronze / silver / gold / quarantine (CREATE SCHEMA IF NOT EXISTS).
-Резервирует ИМЕНА контрактов для фич 002-006; таблицы слоёв создают сами эти фичи.
+Создаёт схемы iceberg.bronze / silver / gold / quarantine + iceberg.ops
+(CREATE SCHEMA IF NOT EXISTS). Резервирует ИМЕНА контрактов для фич 002-006;
+таблицы слоёв создают сами эти фичи.
 Запуск: python -m loftnav.bootstrap (стек должен быть поднят).
 """
 
@@ -11,6 +12,10 @@ import sys
 import time
 
 from loftnav.trino_client import MEDALLION_NAMESPACES, get_connection
+
+# Namespace операционных данных (журнал прогонов 002/003/006). Отдельная константа,
+# НЕ часть MEDALLION_NAMESPACES — ops не слой medallion (ARCH-1 аудита 002).
+OPS_NAMESPACES: tuple[str, ...] = ("ops",)
 
 
 def _wait_ready(timeout: float = 60.0, backoff: float = 3.0) -> None:
@@ -56,7 +61,7 @@ def ensure_namespaces(namespaces: tuple[str, ...] = MEDALLION_NAMESPACES) -> lis
 
 def main() -> int:
     try:
-        created = ensure_namespaces()
+        created = ensure_namespaces(MEDALLION_NAMESPACES + OPS_NAMESPACES)
     except Exception as exc:  # noqa: BLE001 — на CLI показываем понятную причину, не трейс наружу
         print(f"bootstrap: ошибка создания namespace'ов: {exc}", file=sys.stderr)
         return 1

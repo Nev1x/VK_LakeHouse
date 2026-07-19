@@ -1,0 +1,55 @@
+"""XLSX-ридер: openpyxl read_only+data_only iter_rows (НЕ pandas.read_excel — грузит книгу целиком).
+
+Каждый непустой лист = отдельный источник `<источник>_<лист>`. Merged cells: значение в
+левой-верхней ячейке, остальные None (openpyxl в read_only отдаёт None для не-anchor ячеек).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from pathlib import Path
+
+from openpyxl import load_workbook
+
+from loftnav.config import IngestConfig
+from loftnav.ingest.readers.base import Source, normalize_cell
+
+
+class ExcelReader:
+    @classmethod
+    def can_read(cls, path: Path) -> bool:
+        return path.suffix.lower() == ".xlsx"
+
+    def __init__(self, cfg: IngestConfig) -> None:
+        self._cfg = cfg
+
+    def sources(self, path: Path) -> Iterator[Source]:
+        wb = load_workbook(path, read_only=True, data_only=True)
+        try:
+            for ws in wb.worksheets:
+                rows = ws.iter_rows(values_only=True)
+                header = _first_nonempty(rows)
+                if header is None:
+                    continue  # пустой лист пропускаем
+                names = [normalize_cell(c) or f"col_{i}" for i, c in enumerate(header)]
+                yield Source(suffix=ws.title, records=_sheet_records(names, rows))
+        finally:
+            wb.close()
+
+
+def _first_nonempty(rows: Iterator[tuple]) -> tuple | None:
+    for row in rows:
+        if any(c is not None and str(c).strip() != "" for c in row):
+            return row
+    return None
+
+
+def _sheet_records(names: list[str], rows: Iterator[tuple]) -> Iterator[dict[str, str | None]]:
+    n = len(names)
+    for row in rows:
+        if all(c is None or str(c).strip() == "" for c in row):
+            continue  # пустая строка листа
+        rec: dict[str, str | None] = {}
+        for i in range(n):
+            rec[names[i]] = normalize_cell(row[i]) if i < len(row) else None
+        yield rec

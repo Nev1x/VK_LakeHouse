@@ -1,19 +1,21 @@
 # LoftNavigator LakeHouse — управление стеком (фича 001).
 # macOS/BSD-совместимо: логика в POSIX-sh рецептах, без GNU-специфики make.
 .POSIX:
-.PHONY: help up down smoke ps logs deps gen-auth bootstrap check-env check-docker
+.PHONY: help up down smoke ps logs deps gen-auth bootstrap ingest ingest-demo check-env check-docker
 
 COMPOSE = docker compose
 VENV    = .venv
 PY      = $(VENV)/bin/python
+INGEST_DEMO_DIR = tests/fixtures/ingestion
 
 help:
 	@echo "LoftNavigator LakeHouse — make-цели:"
-	@echo "  make up     — поднять стек с нуля (pull -> up -> ожидание healthy)"
-	@echo "  make down   — остановить стек (именованные volumes СОХРАНЯЮТСЯ; НЕ -v)"
-	@echo "  make smoke  — round-trip smoke: Trino -> Iceberg -> MinIO"
-	@echo "  make ps     — статус контейнеров"
-	@echo "  make logs   — логи стека (follow)"
+	@echo "  make up            — поднять стек с нуля (pull -> up -> ожидание healthy)"
+	@echo "  make down          — остановить стек (именованные volumes СОХРАНЯЮТСЯ; НЕ -v)"
+	@echo "  make smoke         — round-trip smoke: Trino -> Iceberg -> MinIO"
+	@echo "  make ingest FILE=  — загрузить файл/папку в bronze (фича 002)"
+	@echo "  make ingest-demo   — загрузить демо-фикстуры tests/fixtures/ingestion/"
+	@echo "  make ps / logs     — диагностика"
 
 check-docker:
 	@docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon не запущен — запусти Docker Desktop и повтори."; exit 1; }
@@ -49,6 +51,14 @@ down: check-docker
 
 smoke: check-env deps
 	@$(PY) -m pytest -q tests/smoke
+
+# ingestion (фича 002); exit code CLI пробрасывается (2 = частичный успех при битом файле в батче)
+ingest: check-env deps
+	@test -n "$(FILE)" || { echo "usage: make ingest FILE=<путь>"; exit 2; }
+	@set -a; . ./.env; set +a; $(PY) -m loftnav.cli ingest "$(FILE)"
+
+ingest-demo: check-env deps
+	@set -a; . ./.env; set +a; $(PY) -m loftnav.cli ingest $(INGEST_DEMO_DIR)
 
 ps:
 	@$(COMPOSE) ps

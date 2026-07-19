@@ -242,3 +242,113 @@ _Дата замера: 2026-07-20 (машина владельца, 8.2 GB VM, 
 | Доп. файлы | — | `infra/trino/{node-less}`, `password-authenticator.properties`, `gen_password.py`, `gen-tls.sh`, `infra/postgres/init/` | реализация auth/каталога (в рамках `infra/`) |
 
 Число контейнеров осталось 5 (minio, postgres, trino, grafana, minio-init) — как в плане.
+
+---
+
+# Ingestion (фича 002 — универсальный загрузчик, as-built)
+
+CLI `loftnav ingest <файл|папка>`: файлы о квартирах (CSV/XLSX/JSON/JSONL) → immutable raw-копия в
+MinIO → типизированный append в `iceberg.bronze.<источник>` через Trino → невалидные строки в
+quarantine → append-only журнал `iceberg.ops.pipeline_runs`. Файл — логическая единица; сбой одного
+файла не роняет батч (I-8).
+
+## Конвейер (на файл)
+
+`hash → журнальный статус (skip/replay) → raw PUT → read (потоково) → schema inference →
+bronze (parametrized INSERT) → rejects → ОДИН INSERT в журнал (try/finally)`.
+
+## CLI / Make
+
+| Команда | Действие |
+|---|---|
+| `make ingest FILE=<path>` | загрузить файл/папку |
+| `make ingest-demo` | загрузить `tests/fixtures/ingestion/` |
+| `loftnav ingest <path...> [--source <имя>]` | прямой CLI (console_script) |
+
+**Exit codes (FR-012):** `0` — всё успешно/skipped; `1` — все файлы провалились; `2` — частично
+(демо возвращает 2 из-за намеренно битого файла). Итоговая сводка по файлам — в stdout,
+structured key=value логи с `run_id` — в stderr.
+
+## Форматы и лимиты
+
+CSV (автодетект `,`/`;`/tab + кодировки utf-8/utf-8-sig/cp1251, бинарный файл → failed),
+XLSX (openpyxl `read_only+data_only`, каждый лист = источник `<база>_<лист>`, merged cell → NULL
+в не-anchor ячейках), JSON/JSONL (вложенные структуры → VARCHAR(JSON)). Лимиты (env,
+переопределяемы): `LOFTNAV_MAX_FILE_MB` (500), поле `LOFTNAV_MAX_FIELD_BYTES` (1 MB),
+`LOFTNAV_READ_CHUNK_ROWS` (5000), `LOFTNAV_INSERT_CHUNK_ROWS` (1000). Новый формат = новый
+reader-модуль (`ingest/readers/`), диспетчер не трогается.
+
+## Schema inference
+
+Примитивы Iceberg: BOOLEAN/BIGINT/DOUBLE/DATE/TIMESTAMP/VARCHAR. Тип выводится по первому
+read-чанку; конфликт типов внутри чанка → VARCHAR; запятая-десятичная (`1234,56`) остаётся VARCHAR
+(нормализация — работа 003); вложенный JSON → VARCHAR. Строки, не приводящиеся к типу колонки
+(в т.ч. нарушающие тип на поздних чанках или несовместимые со схемой существующей таблицы), →
+quarantine. Санитизация ВСЕХ идентификаторов — единый `sanitize_identifier()` (`[a-z0-9_]`, не с
+цифры, дедуп, non-ASCII→`_`); пользовательский `_`-префикс → `u_` (служебный `_` зарезервирован).
+Значения в SQL — ТОЛЬКО bind-параметры; идентификаторы — санитизированы и двойными кавычками (I-7).
+
+## Контракт bronze-таблиц
+
+`iceberg.bronze.<источник>` (`format='PARQUET', format_version=2` — row-level DELETE для replay).
+Data-колонки + служебные: `_run_id`, `_content_hash`, `_source_file`, `_ingested_at`. VARCHAR без
+длины (unbounded). Эволюция строго additive: `ALTER TABLE ADD COLUMN` (nullable); существующая
+колонка авторитетна; несовместимый тип вне промоций (INTEGER→BIGINT, BIGINT→DOUBLE, REAL→DOUBLE) →
+файл `failed` «schema conflict» (I-6). Прямая запись parquet в warehouse запрещена (I-4).
+
+## Контракт журнала (frozen, I-3/I-6)
+
+`iceberg.ops.pipeline_runs` (namespace `ops` — bootstrap, константа `OPS_NAMESPACES`, НЕ слой
+medallion). Колонки: `run_id, stage, started_at, finished_at, source_file, content_hash,
+target_table, rows_ok, rows_quarantined, schema_json, status, error_message`. **ОДИН INSERT на
+прогон файла** (try/finally); НИКАКИХ UPDATE (append-only). `stage='ingest'` (003/006 добавят свои).
+Статусы: `success` (0 отбраковок) / `partial` (были отбраковки) / `failed` (сбой файла) / `skipped`
+(идемпотентный повтор). Для каждого прогона `rows_ok + rows_quarantined` = обработанные строки
+(вход дашборда 005).
+
+## Quarantine
+
+`iceberg.quarantine.bronze_<источник>_rejects` (fv2): `run_id, source, raw_record` (JSON as-is),
+`reason`, `rejected_at`, `layer`. Модуль `quarantine.py` переиспользует 003. Невалидные строки не
+дропаются молча (I-2).
+
+## Raw (immutable, I-2)
+
+Content-addressed ключ `raw/<sha256-hex>/<безопасное-имя>` в bucket `raw`. Одинаковые байты → один
+ключ → идемпотентный PUT; перезапись другим содержимым по тому же ключу невозможна by construction.
+Исходное имя файла as-is живёт в журнале (`source_file`).
+
+## Идемпотентность и replay (FR-010)
+
+Перед обработкой — SELECT последнего статуса по `content_hash`: `success`/`skipped` → **skip**
+(журнал `skipped`); `failed`/`partial` → **replay**: `DELETE FROM bronze WHERE _content_hash = ?`
+(bind-параметр, только строки этого файла) → повторная вставка. **I-2-трактовка:** raw абсолютно
+immutable и не затрагивается; DELETE применяется ТОЛЬКО к строкам прогона, никогда не имевшего
+статуса `success` (мусор незавершённой попытки, не зафиксированная история); Iceberg-снапшоты не
+expire (time-travel сохраняет их); quarantine не трогается; журнал получает НОВУЮ запись (старая не
+редактируется). Конкурентность (I-15): файловый lock `${TMPDIR}/loftnav-ingest.lock`
+(`O_CREAT|O_EXCL` + pid, stale-lock перехватывается) — второй запуск получает читаемую ошибку.
+
+## Ограничения и осознанные риски
+
+- **PII в quarantine as-is (SEC-5):** отбракованные записи хранятся сырыми — осознанный риск
+  локальной single-user платформы (I-1); маскирование — кандидат отдельной фичи.
+- **Рост журнала (PERF-4):** идемпотентность делает full-scan по `content_hash` — принято для
+  демо-масштаба; партиционирование/индекс — ревизия при >10^5 прогонов.
+- **JSON-массив без стриминга:** файл-массив > лимита размера → failed; для больших объёмов — JSONL.
+- **Откат:** additive-колонки bronze при необходимости дропаются вручную без потери остальных данных;
+  разрушающих миграций нет.
+
+## Пины зависимостей (002)
+
+`pandas==3.0.3`, `openpyxl==3.1.5`, `boto3==1.43.51` (runtime); `requests==2.34.2` (dev —
+использует smoke/интеграционные тесты; в 001 доезжал транзитивно). Стратегия INSERT выбрана
+spike-тестом на живом Trino 483 (см. ниже).
+
+## Отклонения от плана 002 (as-built, обоснование I-13)
+
+| Область | План | Факт | Причина |
+|---|---|---|---|
+| Стратегия INSERT | execute vs executemany (spike) | multi-row `INSERT ... VALUES (?,..),(?,..)`, ОДИН execute на чанк | spike: `executemany` trino-клиента шлёт построчно (N запросов = N снапшотов = мелкие файлы); multi-row single-execute = один снапшот на чанк |
+| Инференс «уточнение по ходу» (T6) | промоция типа по ходу файла | инференс по первому read-чанку; строки, нарушающие тип на поздних чанках, → quarantine | проще и спец-совместимо (US-5): не переписываем колонку mid-batch; конфликт ВНУТРИ чанка → VARCHAR |
+| Идемпотентный статус (FR-010) | «success → skip» | `success` И `skipped` → skip | иначе повтор после skip видел бы last_status=`skipped` и делал бы свежий append (дефект найден и закрыт в этом же цикле) |
