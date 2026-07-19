@@ -47,3 +47,7 @@
 | 2026-07-19T23:28:09Z | stage-4-quality:start | checkpoint=52941171803795b7303c6b5e06eb4ab6bfe390d3 |
 | 2026-07-19T23:28:13Z | agent:qa-director:start | проход 2: верификация фиксов, консолидация evidence |
 | 2026-07-19T23:29:15Z | agent:qa-director:done | проход 2: фиксы верифицированы лично, матрица 27/27, CRITICAL 0, вердикт PASS готов |
+| 2026-07-19T23:29:16Z | quality-head | 7da30baf716b14a78e1957d1f5de9f83b05dea79 |
+| 2026-07-19T23:29:24Z | quality-verdict | PASS — matrix 27/27 DONE; pytest 44 passed + ruff clean + smoke 4 passed + ingest-demo идемпотентен; адверсарно: инъекции отбиты, lock без гонки; CRITICAL 0 после fix-цикла (retry 1/2) |
+| 2026-07-19T23:29:28Z | confidence:stage-4-quality | level=green reason=вердикт PASS с evidence текущей попытки; сигналы прогнаны лично |
+| 2026-07-19T23:29:28Z | stage-4-quality:done | - |
