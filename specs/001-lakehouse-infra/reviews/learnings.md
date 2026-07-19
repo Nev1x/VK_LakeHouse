@@ -62,3 +62,15 @@
   переподтверждены после фиксов.
 - **Learnings:** негативные сценарии (I-8: подсистема выключена) должны попадать в smoke уже на
   первом проходе stage-3 — Test Engineer stage-4 не должен быть первым, кто гасит Grafana.
+
+## stage-4
+
+- **Interpretations:** Technical Writer не создавал адаптер раннера/CHANGELOG (шаблон стадии) — в
+  C→H commit V3 допустимы только state/audit и review-markdown; консолидация learnings и
+  проверка as-built docs выполнены в reviews/.
+- **Deviations:** первый проход завершился pre-H FAIL (I-8 в smoke) → официальный возврат в
+  S3, narrow-fix, повторный проход. Retry 1/2.
+- **Tradeoffs:** evidence прохода 1 по осям, не затронутым фиксом (auth, порты, персистентность),
+  переиспользован без полного повторного прогона — повторены только затронутые оси.
+- **Open questions:** кандидаты pipeline-rules (3 шт., см. stage-4-quality.md) — на решение
+  владельца.

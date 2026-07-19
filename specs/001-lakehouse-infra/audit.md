@@ -60,3 +60,6 @@
 | 2026-07-19T21:44:07Z | agent:kulibin:done | fix-цикл: smoke разделён на data-plane (блокирующий) и grafana (non-blocking, I-8); docstring исправлен; architecture.md +quickstart/TLS-note/дата замеров; верифицировано дважды |
 | 2026-07-19T21:44:08Z | confidence:stage-3-dev | level=green reason=fix-цикл верифицирован лично: grafana-down smoke 4 passed+warning (I-8), pytest 4 passed, ruff clean, diff ровно 3 файла; units 4/4 переподтверждены |
 | 2026-07-19T21:44:08Z | stage-3-dev:done | - |
+| 2026-07-19T21:44:21Z | stage-4-quality:start | checkpoint=6665af8a6d1f264ac1a472f8856f1c0a9c03928e |
+| 2026-07-19T21:44:24Z | agent:qa-director:start | повторный проход stage-4: сверка фиксов с QA-отчётами первого прохода, консолидация evidence |
+| 2026-07-19T21:45:27Z | agent:qa-director:done | проход 2: фиксы верифицированы лично (I-8 negative зелёный, pytest 4 passed, ruff clean); матрица 27/27; CRITICAL 0; вердикт PASS готов к фиксации |
