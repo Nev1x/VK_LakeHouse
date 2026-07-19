@@ -1,0 +1,16 @@
+# --- секреты: реальные креды живут только локально (I-7, FR-008) ---
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+
+# сгенерированные при bootstrap креды (bcrypt-хэш пароля Trino — FR-015, в git не попадает)
+infra/trino/auth/
+
+# --- python (FR-008) ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

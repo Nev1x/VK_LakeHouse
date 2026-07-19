@@ -1,0 +1,163 @@
+# LakeHouse-стек LoftNavigator (фича 001). Управление — через Makefile (make up/down/smoke).
+# Все образы запинены (:latest запрещён); креды — только из .env (I-7); порты — только 127.0.0.1.
+name: loftnav
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "10"
+
+networks:
+  # public_net: Grafana <-> host (единственная наружу-смотрящая поверхность приложения)
+  public_net:
+    name: loftnav_public_net
+  # app_net: граница приложений (Grafana <-> Trino; сюда встанут app-сервисы 002+)
+  app_net:
+    name: loftnav_app_net
+  # data_net: Trino <-> MinIO <-> Postgres (внутренняя data-сеть, I-1)
+  data_net:
+    name: loftnav_data_net
+
+volumes:
+  pg_data:
+    name: loftnav_pg_data
+  minio_data:
+    name: loftnav_minio_data
+  grafana_data:
+    name: loftnav_grafana_data
+
+services:
+  postgres:
+    image: postgres:16.14-alpine3.23
+    container_name: loftnav-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER не задан — скопируй .env.example в .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан}
+      POSTGRES_DB: ${POSTGRES_DB:-iceberg_catalog}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # пред-создание служебных таблиц JDBC-каталога Iceberg (один раз на свежем volume)
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [data_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 768m
+    logging: *default-logging
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: loftnav-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER не задан — скопируй .env.example в .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD не задан}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    networks: [data_net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/ready || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    mem_limit: 1024m
+    logging: *default-logging
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: loftnav-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/scripts/bootstrap.sh"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER не задан}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD не задан}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./infra/minio/bootstrap.sh:/scripts/bootstrap.sh:ro
+    networks: [data_net]
+    mem_limit: 128m
+    logging: *default-logging
+    restart: "no"
+
+  trino:
+    image: trinodb/trino:483
+    container_name: loftnav-trino
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      # env-подстановка ${ENV:VAR} в конфигах Trino (iceberg.properties) читает эти переменные
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER не задан}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER не задан}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD не задан}
+      TRINO_INTERNAL_SECRET: ${TRINO_INTERNAL_SECRET:?TRINO_INTERNAL_SECRET не задан}
+      TRINO_KEYSTORE_PASSWORD: ${TRINO_KEYSTORE_PASSWORD:?TRINO_KEYSTORE_PASSWORD не задан}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./infra/trino/config.properties:/etc/trino/config.properties:ro
+      - ./infra/trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./infra/trino/password-authenticator.properties:/etc/trino/password-authenticator.properties:ro
+      - ./infra/trino/catalog/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+      # password.db генерируется make up из TRINO_USER/TRINO_PASSWORD (bcrypt), в git не попадает
+      - ./infra/trino/auth:/etc/trino/auth:ro
+    ports:
+      # публикуем ТОЛЬКО HTTPS-порт (8443) как host 8080; внутренний http:8080 не публикуется
+      - "127.0.0.1:${TRINO_PORT:-8080}:8443"
+    networks: [app_net, data_net]
+    healthcheck:
+      # health по внутреннему http /v1/info (public endpoint, без auth)
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/info || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 4
+      start_period: 90s
+    mem_limit: 2816m
+    logging: *default-logging
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.3.8
+    container_name: loftnav-grafana
+    depends_on:
+      trino:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?GRAFANA_ADMIN_USER не задан}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD не задан}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      TZ: ${TZ:-UTC}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # каталоги provisioning под фичу 005 (в 001 пустые, только .gitkeep)
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    networks: [public_net, app_net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    mem_limit: 512m
+    logging: *default-logging
+    restart: unless-stopped

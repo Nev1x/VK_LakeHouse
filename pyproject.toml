@@ -1,0 +1,45 @@
+[project]
+name = "loftnav"
+version = "0.1.0"
+description = "LoftNavigator LakeHouse platform (feature 001 — base infra)"
+requires-python = ">=3.12"
+dependencies = [
+    "trino==0.338.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.15.22",
+    "bcrypt==5.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+    # self-signed cert Trino на loopback (осознанно, verify=False) — не шумим в выводе гейта
+    "ignore::urllib3.exceptions.InsecureRequestWarning",
+]
+
+[tool.ruff]
+line-length = 100
+# Явный exclude каталогов харнеса: гейт `ruff check .` не должен спотыкаться о будущие
+# python-файлы харнеса, которые фича 001 не сопровождает (FR-011).
+extend-exclude = [
+    "scripts",
+    "Product_agents",
+    "coordination",
+    ".githooks",
+    "tests/agent-evals",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
