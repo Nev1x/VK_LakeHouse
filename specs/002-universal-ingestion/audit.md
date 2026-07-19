@@ -44,3 +44,6 @@
 | 2026-07-19T23:28:00Z | agent:kulibin:done | фикс-цикл 5/5: честные счётчики журнала при сбое, чанк по оценке инлайнового SQL (700K), свои заголовки CSV, валидный JSON при обрезке; 44 passed |
 | 2026-07-19T23:28:01Z | confidence:stage-3-dev | level=green reason=фиксы верифицированы лично: pytest 44 passed, ruff clean, smoke 4 passed, ingest-demo идемпотентен; diff 12 файлов реализации |
 | 2026-07-19T23:28:01Z | stage-3-dev:done | - |
+| 2026-07-19T23:28:09Z | stage-4-quality:start | checkpoint=52941171803795b7303c6b5e06eb4ab6bfe390d3 |
+| 2026-07-19T23:28:13Z | agent:qa-director:start | проход 2: верификация фиксов, консолидация evidence |
+| 2026-07-19T23:29:15Z | agent:qa-director:done | проход 2: фиксы верифицированы лично, матрица 27/27, CRITICAL 0, вердикт PASS готов |
