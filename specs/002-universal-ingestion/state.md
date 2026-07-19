@@ -5,7 +5,7 @@
 - Scope: feature
 - Ticket: —
 - Started: 2026-07-19T22:09:05Z
-- Updated: 2026-07-19T22:58:56Z
+- Updated: 2026-07-19T23:28:01Z
 - Quality-HEAD: —
 
 ## Stages
@@ -25,7 +25,7 @@
 
 - confidence-stage-1-creative: green — spec-lint OK 10/10; 2 отчёта консолидированы; открытые вопросы закрыты явными решениями в FR (2026-07-19T22:15:12Z)
 - confidence-stage-2-audit: green — spec-lint OK, plan-lint OK (21/21, 0 overreach), constitution 0/0/0 после правок; approve по делегации владельца (2026-07-19T22:24:07Z)
-- confidence-stage-3-dev: green — сам прогнал: pytest 40 passed, ruff clean, smoke 4 passed, повторный ingest-demo idempotent (exit 2 broken), Trino SELECT bronze=5/журнал полон; units 5/5 (2026-07-19T22:58:56Z)
+- confidence-stage-3-dev: green — фиксы верифицированы лично: pytest 44 passed, ruff clean, smoke 4 passed, ingest-demo идемпотентен; diff 12 файлов реализации (2026-07-19T23:28:01Z)
 - confidence-stage-4-quality: —
 
 > Файл ведёт `scripts/pipeline-state.sh` — чекбоксы, гейты и confidence руками не редактируются;

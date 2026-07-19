@@ -31,8 +31,13 @@ class ExcelReader:
                 header = _first_nonempty(rows)
                 if header is None:
                     continue  # пустой лист пропускаем
-                names = [normalize_cell(c) or f"col_{i}" for i, c in enumerate(header)]
-                yield Source(suffix=ws.title, records=_sheet_records(names, rows))
+                # сырые имена (str|None); нормализацию col_N/_2 делает sanitize_columns (INFO-1)
+                raw_header = [normalize_cell(c) for c in header]
+                yield Source(
+                    suffix=ws.title,
+                    records=_sheet_records(len(raw_header), rows),
+                    header=raw_header,
+                )
         finally:
             wb.close()
 
@@ -44,12 +49,8 @@ def _first_nonempty(rows: Iterator[tuple]) -> tuple | None:
     return None
 
 
-def _sheet_records(names: list[str], rows: Iterator[tuple]) -> Iterator[dict[str, str | None]]:
-    n = len(names)
+def _sheet_records(ncol: int, rows: Iterator[tuple]) -> Iterator[list[str | None]]:
     for row in rows:
         if all(c is None or str(c).strip() == "" for c in row):
             continue  # пустая строка листа
-        rec: dict[str, str | None] = {}
-        for i in range(n):
-            rec[names[i]] = normalize_cell(row[i]) if i < len(row) else None
-        yield rec
+        yield [normalize_cell(row[i]) if i < len(row) else None for i in range(ncol)]

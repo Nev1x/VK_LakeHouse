@@ -43,8 +43,12 @@ def write_rejects(
     rejects: list[Reject],
     *,
     chunk_rows: int = 1000,
+    chunk_bytes: int = 700_000,
 ) -> int:
-    """Пишет отбракованные строки в quarantine-таблицу слоя. Возвращает число записанных строк."""
+    """Пишет отбракованные строки в quarantine-таблицу слоя (byte-aware чанки — CRITICAL-2).
+
+    raw_record усечён до валидного JSON вызывающим, но может достигать ~лимита поля — режем INSERT
+    и по строкам, и по оценке длины текста запроса (trino инлайнит params)."""
     if not rejects:
         return 0
     table = rejects_table(layer, source)
@@ -52,8 +56,7 @@ def write_rejects(
     now = _dt.datetime.now(_dt.UTC).replace(tzinfo=None)
     cur = conn.cursor()
     written = 0
-    for start in range(0, len(rejects), chunk_rows):
-        batch = rejects[start : start + chunk_rows]
+    for batch in _chunk_rejects(rejects, chunk_rows, chunk_bytes):
         placeholders = ",".join(["(?,?,?,?,?,?)"] * len(batch))
         params: list[object] = []
         for r in batch:
@@ -66,3 +69,17 @@ def write_rejects(
         cur.fetchall()
         written += len(batch)
     return written
+
+
+def _chunk_rejects(rejects: list[Reject], chunk_rows: int, chunk_bytes: int):
+    batch: list[Reject] = []
+    size = 0
+    for r in rejects:
+        est = 2 * (len(r.raw_record) + len(r.reason)) + 160  # инлайн + экранирование + служебные
+        if batch and (len(batch) >= chunk_rows or size + est > chunk_bytes):
+            yield batch
+            batch, size = [], 0
+        batch.append(r)
+        size += est
+    if batch:
+        yield batch

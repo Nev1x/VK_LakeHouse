@@ -162,20 +162,81 @@ def test_replay_no_duplication(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     csv = tmp_path / f"{source}.csv"
     csv.write_text(f"id,val\n1,a-{tag}\n2,b\n3,c\n", encoding="utf-8")
     cfg = IngestConfig.from_env()
-    original = bronze_writer.insert_rows
+    original = bronze_writer.insert_batch
 
     def failing(*args, **kwargs):
         original(*args, **kwargs)  # строки реально вставлены (committed) до сбоя
         raise RuntimeError("искусственный сбой после вставки")
 
     try:
-        monkeypatch.setattr(bronze_writer, "insert_rows", failing)
+        monkeypatch.setattr(bronze_writer, "insert_batch", failing)
         assert ingest_paths([csv], source, cfg) == EXIT_ALL_FAILED
         assert _count(f'iceberg.bronze."{source}"') == 3  # частичные строки крашнутого прогона
 
-        monkeypatch.setattr(bronze_writer, "insert_rows", original)  # чиним
+        monkeypatch.setattr(bronze_writer, "insert_batch", original)  # чиним
         assert ingest_paths([csv], source, cfg) == EXIT_OK
         # replay удалил строки failed-прогона и вставил заново -> ровно 3, без задвоения
         assert _count(f'iceberg.bronze."{source}"') == 3
+    finally:
+        _drop(source)
+
+
+def test_oversized_field_reject_valid_json(tmp_path: Path) -> None:
+    """Поле ~1.1MB -> reject с ВАЛИДНЫМ JSON; журнал partial, счётчики сходятся (CRITICAL-1/2)."""
+    tag = uuid.uuid4().hex[:8]
+    source = f"bigf_{tag}"
+    csv = tmp_path / f"{source}.csv"
+    big = "x" * 1_100_000  # > max_field_bytes (200_000)
+    csv.write_text(f"id,val\n1,ok-{tag}\n2,{big}\n3,ok2\n", encoding="utf-8")
+    try:
+        assert ingest_paths([csv], source, IngestConfig.from_env()) == EXIT_OK
+        bronze = _count(f'iceberg.bronze."{source}"')
+        rejects = _count(f'iceberg.quarantine."bronze_{source}_rejects"')
+        assert (bronze, rejects) == (2, 1)
+        assert bronze + rejects == 3  # = строки источника
+        raw = _q(
+            f'SELECT raw_record FROM iceberg.quarantine."bronze_{source}_rejects"'
+        )[0][0]
+        parsed = json.loads(raw)  # ВАЛИДНЫЙ JSON (не битый посимвольный срез)
+        assert parsed["_truncated"] is True and parsed["_original_bytes"] > 1_000_000
+        jr = _q(
+            "SELECT status, rows_ok, rows_quarantined FROM iceberg.ops.pipeline_runs "
+            f"WHERE source_file = '{csv}' ORDER BY started_at DESC LIMIT 1"
+        )[0]
+        assert (jr[0], jr[1], jr[2]) == ("partial", 2, 1)
+    finally:
+        _drop(source)
+
+
+def test_large_rows_no_query_too_large(tmp_path: Path) -> None:
+    """1000 строк × ~1.2KB -> success без QUERY_TEXT_TOO_LARGE (byte-бюджет INSERT, CRITICAL-2)."""
+    tag = uuid.uuid4().hex[:8]
+    source = f"big_{tag}"
+    csv = tmp_path / f"{source}.csv"
+    cell = "y" * 1200
+    lines = ["id,txt", *[f"{i},{cell}-{tag}" for i in range(1000)]]
+    csv.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        assert ingest_paths([csv], source, IngestConfig.from_env()) == EXIT_OK
+        assert _count(f'iceberg.bronze."{source}"') == 1000
+        jr = _q(
+            "SELECT status FROM iceberg.ops.pipeline_runs "
+            f"WHERE source_file = '{csv}' ORDER BY started_at DESC LIMIT 1"
+        )[0][0]
+        assert jr == "success"
+    finally:
+        _drop(source)
+
+
+def test_empty_and_duplicate_header_columns(tmp_path: Path) -> None:
+    """CSV с пустым и дублирующимся заголовком -> bronze-колонки col_N/_2 (WARNING-1)."""
+    tag = uuid.uuid4().hex[:8]
+    source = f"hdr_{tag}"
+    csv = tmp_path / f"{source}.csv"
+    csv.write_text(f"a,,a,b\n1,{tag},3,4\n5,6,7,8\n", encoding="utf-8")
+    try:
+        assert ingest_paths([csv], source, IngestConfig.from_env()) == EXIT_OK
+        cols = [r[0] for r in _q(f'DESCRIBE iceberg.bronze."{source}"')]
+        assert {"a", "col_1", "a_2", "b"}.issubset(set(cols))
     finally:
         _drop(source)

@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+import datetime as _dt
+from collections.abc import Iterable
 
 from loftnav.ingest.inference import quote_ident
 
@@ -117,42 +118,44 @@ def delete_by_content_hash(conn, source: str, content_hash: str) -> None:
     cur.fetchall()
 
 
-def insert_rows(
-    conn,
-    source: str,
-    columns: list[str],
-    rows: Iterable[list],
-    *,
-    chunk_rows: int,
-    chunk_bytes: int,
-) -> int:
-    """Multi-row параметризованный INSERT чанками (rows/bytes-cap). Отдаёт число строк."""
-    table = bronze_table(source)
+def insert_prefix_len(source: str, columns: list[str]) -> int:
+    """Длина статического префикса INSERT (учитывается в бюджете длины запроса)."""
     col_sql = ", ".join(quote_ident(c) for c in columns)
-    ncol = len(columns)
-    row_ph = "(" + ",".join(["?"] * ncol) + ")"
-    cur = conn.cursor()
-    total = 0
-    for batch in _chunked(rows, chunk_rows, chunk_bytes):
-        placeholders = ",".join([row_ph] * len(batch))
-        params: list[object] = []
-        for r in batch:
-            params.extend(r)
-        cur.execute(f"INSERT INTO {table} ({col_sql}) VALUES {placeholders}", params)
-        cur.fetchall()
-        total += len(batch)
+    return len(f"INSERT INTO {bronze_table(source)} ({col_sql}) VALUES ")
+
+
+def estimate_row_sql(row: Iterable[object]) -> int:
+    """Оценка ДЛИНЫ ИНЛАЙНОВОГО литерала строки в тексте запроса (trino инлайнит params).
+
+    Консервативно (over-estimate): строки — с worst-case экранированием кавычек (×2) и обрамлением;
+    типизированные литералы (timestamp/date) — с запасом. CRITICAL-2: чанк режем по этой оценке.
+    """
+    total = 2  # ()
+    for v in row:
+        if v is None:
+            total += 4                         # NULL
+        elif isinstance(v, bool):
+            total += 5
+        elif isinstance(v, str):
+            total += 2 * len(v) + 3            # кавычки + worst-case экранирование
+        elif isinstance(v, (_dt.datetime, _dt.date)):
+            total += 40                        # TIMESTAMP '....' / DATE '....'
+        else:
+            total += len(str(v)) + 2
+        total += 1                             # запятая
     return total
 
 
-def _chunked(rows: Iterable[list], chunk_rows: int, chunk_bytes: int) -> Iterator[list[list]]:
-    batch: list[list] = []
-    size = 0
-    for r in rows:
-        approx = sum(len(str(v)) for v in r if v is not None) + 8
-        if batch and (len(batch) >= chunk_rows or size + approx > chunk_bytes):
-            yield batch
-            batch, size = [], 0
-        batch.append(r)
-        size += approx
-    if batch:
-        yield batch
+def insert_batch(conn, source: str, columns: list[str], batch: list[list]) -> None:
+    """Один multi-row параметризованный INSERT для переданного батча (значения — bind-параметры)."""
+    if not batch:
+        return
+    col_sql = ", ".join(quote_ident(c) for c in columns)
+    row_ph = "(" + ",".join(["?"] * len(columns)) + ")"
+    placeholders = ",".join([row_ph] * len(batch))
+    params: list[object] = []
+    for r in batch:
+        params.extend(r)
+    cur = conn.cursor()
+    cur.execute(f"INSERT INTO {bronze_table(source)} ({col_sql}) VALUES {placeholders}", params)
+    cur.fetchall()

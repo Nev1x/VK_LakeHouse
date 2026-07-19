@@ -30,3 +30,17 @@
 | 2026-07-19T22:58:56Z | agent:kulibin:done | u1-u5 DONE; spike: multi-row single-execute INSERT, DELETE fv2 работает; 40 passed; ingest-demo 13с exit 2; найден и закрыт баг идемпотентности после skipped |
 | 2026-07-19T22:58:56Z | confidence:stage-3-dev | level=green reason=сам прогнал: pytest 40 passed, ruff clean, smoke 4 passed, повторный ingest-demo idempotent (exit 2 broken), Trino SELECT bronze=5/журнал полон; units 5/5 |
 | 2026-07-19T22:58:56Z | stage-3-dev:done | - |
+| 2026-07-19T22:59:05Z | stage-4-quality:start | checkpoint=e763105585a49a775dfb020748253ecce470d65f |
+| 2026-07-19T22:59:09Z | agent:qa-verifier:start | stage-4: независимая адверсарная проверка 002 |
+| 2026-07-19T23:11:09Z | agent:qa-verifier:done | инъекции/лок/идемпотентность PASS адверсарно; CRIT 2 (журнал rows_ok=0 при закоммиченных bronze-строках после сбоя quarantine; chunk-cap 4MB против query.max-length 1MB - клиент инлайнит params), WARN 2 (pandas-мэнглинг заголовков вместо санитайзера, битый JSON при обрезке raw_record), INFO 2 |
+| 2026-07-19T23:11:10Z | stage-3-dev:invalidated | reset from stage-3-dev |
+| 2026-07-19T23:11:10Z | stage-4-quality:invalidated | reset from stage-3-dev |
+| 2026-07-19T23:11:10Z | stage-3-dev:start | - |
+| 2026-07-19T23:27:52Z | unit-done | u1-io-core |
+| 2026-07-19T23:27:54Z | unit-done | u2-readers-inference |
+| 2026-07-19T23:27:55Z | unit-done | u3-write-path |
+| 2026-07-19T23:27:57Z | unit-done | u4-cli-batch |
+| 2026-07-19T23:27:59Z | unit-done | u5-tests-docs |
+| 2026-07-19T23:28:00Z | agent:kulibin:done | фикс-цикл 5/5: честные счётчики журнала при сбое, чанк по оценке инлайнового SQL (700K), свои заголовки CSV, валидный JSON при обрезке; 44 passed |
+| 2026-07-19T23:28:01Z | confidence:stage-3-dev | level=green reason=фиксы верифицированы лично: pytest 44 passed, ruff clean, smoke 4 passed, ingest-demo идемпотентен; diff 12 файлов реализации |
+| 2026-07-19T23:28:01Z | stage-3-dev:done | - |

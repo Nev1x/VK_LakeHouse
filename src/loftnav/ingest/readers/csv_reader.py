@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv as _csv
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -49,6 +50,18 @@ def _detect_delimiter(path: Path, encoding: str) -> str:
     return best if counts[best] > 0 else ","
 
 
+def _read_raw_header(path: Path, encoding: str, delimiter: str) -> list[str]:
+    """Сырые имена колонок из первой строки файла (csv-модуль), БЕЗ мэнглинга pandas (WARNING-1).
+
+    Итоговые имена формирует только sanitize_columns (col_N для пустых, _2 для дублей).
+    """
+    with open(path, encoding=encoding, errors="replace", newline="") as fh:
+        reader = _csv.reader(fh, delimiter=delimiter)
+        for row in reader:
+            return [c.strip() for c in row]
+    return []
+
+
 class CsvReader:
     @classmethod
     def can_read(cls, path: Path) -> bool:
@@ -60,11 +73,18 @@ class CsvReader:
     def sources(self, path: Path) -> Iterator[Source]:
         encoding = _detect_encoding(path)
         delimiter = _detect_delimiter(path, encoding)
+        raw_header = _read_raw_header(path, encoding, delimiter)
+        ncol = len(raw_header)
 
-        def gen() -> Iterator[dict[str, str | None]]:
+        def gen() -> Iterator[list[str | None]]:
+            # позиционные имена 0..N-1 => pandas не мэнглит заголовок; строку заголовка пропускаем
             reader = pd.read_csv(
                 path,
                 sep=delimiter,
+                header=None,
+                skiprows=1,
+                names=list(range(ncol)),
+                usecols=list(range(ncol)),
                 dtype=str,
                 keep_default_na=False,
                 na_filter=False,
@@ -74,8 +94,7 @@ class CsvReader:
                 engine="c",
             )
             for chunk in reader:
-                cols = list(chunk.columns)
                 for row in chunk.itertuples(index=False, name=None):
-                    yield {cols[i]: normalize_cell(row[i]) for i in range(len(cols))}
+                    yield [normalize_cell(v) for v in row]
 
-        yield Source(suffix="", records=gen())
+        yield Source(suffix="", records=gen(), header=raw_header)

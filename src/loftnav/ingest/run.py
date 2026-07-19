@@ -50,6 +50,16 @@ class FileResult:
     error: str | None = None
 
 
+@dataclass
+class _Counters:
+    """Живые счётчики ФАКТИЧЕСКИ закоммиченного (обновляются только после успешной вставки).
+
+    Журнал (в т.ч. при сбое посреди файла) отражает эти значения — CRITICAL-1/NFR-003/I-2.
+    """
+    rows_ok: int = 0
+    rows_quarantined: int = 0
+
+
 def _now() -> _dt.datetime:
     return _dt.datetime.now(_dt.UTC).replace(tzinfo=None)
 
@@ -118,55 +128,113 @@ def _ensure_schemas(conn) -> None:
 # --- обработка одного источника (лист/файл) ---
 
 
-def _process_source(conn, source, records, ctx, cfg, replay) -> tuple[int, int, str | None, dict]:
-    run_id, content_hash, source_file = ctx
-    buffer = list(itertools.islice(records, cfg.read_chunk_rows))
-    if not buffer:
-        return 0, 0, None, {}
+def _rows_and_header(src, chunk_rows: int) -> tuple[list[str | None], list[list], object]:
+    """Приводит источник к позиционной модели: (сырые имена, буфер-строк, поток остатка).
 
+    Табличные форматы (header != None) уже позиционные; JSON (dict-записи) — union ключей буфера.
+    """
+    if src.header is not None:
+        buffer = list(itertools.islice(src.records, chunk_rows))
+        return list(src.header), buffer, src.records
+    buf_dicts = list(itertools.islice(src.records, chunk_rows))
     raw_cols: list[str] = []
     seen: set[str] = set()
-    for rec in buffer:
-        for k in rec:
+    for d in buf_dicts:
+        for k in d:
             if k not in seen:
                 seen.add(k)
                 raw_cols.append(k)
+    buffer = [[d.get(c) for c in raw_cols] for d in buf_dicts]
+    rest = ([d.get(c) for c in raw_cols] for d in src.records)
+    return raw_cols, buffer, rest
+
+
+def _make_reject(raw_cols: list[str | None], row: list, reason: str, cfg) -> quarantine.Reject:
+    """Строит reject с ВАЛИДНЫМ JSON; при превышении — {_truncated, _original_bytes, _prefix}."""
+    obj = {
+        (name if isinstance(name, str) and name else f"col_{i}"): (row[i] if i < len(row) else None)
+        for i, name in enumerate(raw_cols)
+    }
+    raw = json.dumps(obj, ensure_ascii=False, default=str)
+    data = raw.encode("utf-8")
+    if len(data) > cfg.max_field_bytes:
+        prefix = data[: max(0, cfg.max_field_bytes - 128)].decode("utf-8", errors="ignore")
+        raw = json.dumps(
+            {"_truncated": True, "_original_bytes": len(data), "_prefix": prefix},
+            ensure_ascii=False,
+        )
+    return quarantine.Reject(raw_record=raw, reason=reason)
+
+
+def _process_source(conn, source, src, ctx, cfg, replay, counters) -> tuple[str | None, dict]:
+    """Стрим источника: инкрементальный коммит bronze/rejects; счётчики = ФАКТ (CRITICAL-1)."""
+    run_id, content_hash, source_file = ctx
+    raw_cols, buffer, rest = _rows_and_header(src, cfg.read_chunk_rows)
+    if not buffer:
+        return None, {}
+
     sanitized = sanitize_columns(raw_cols)
     data_schema = {
-        san: infer_type([rec.get(raw) for rec in buffer])
-        for raw, san in zip(raw_cols, sanitized, strict=True)
+        san: infer_type([row[i] if i < len(row) else None for row in buffer])
+        for i, san in enumerate(sanitized)
     }
-
     effective = bronze_writer.ensure_table(conn, source, data_schema)
     if replay:
         bronze_writer.delete_by_content_hash(conn, source, content_hash)
 
     columns = [*sanitized, *(c for c, _ in bronze_writer.SERVICE_COLUMNS)]
-    ingested_at = _now()
-    valid_rows: list[list] = []
-    rejects: list[quarantine.Reject] = []
+    prefix_len = bronze_writer.insert_prefix_len(source, columns)
+    service = [run_id, content_hash, source_file, _now()]
+    valid_batch: list[list] = []
+    valid_sql = prefix_len
+    reject_batch: list[quarantine.Reject] = []
 
-    for rec in itertools.chain(buffer, records):
+    def flush_valid() -> None:
+        nonlocal valid_batch, valid_sql
+        if valid_batch:
+            bronze_writer.insert_batch(conn, source, columns, valid_batch)
+            counters.rows_ok += len(valid_batch)  # обновляем ТОЛЬКО после коммита
+            valid_batch, valid_sql = [], prefix_len
+
+    def flush_rejects() -> None:
+        nonlocal reject_batch
+        if reject_batch:
+            quarantine.write_rejects(
+                conn, run_id, source, "bronze", reject_batch,
+                chunk_rows=cfg.insert_chunk_rows, chunk_bytes=cfg.insert_chunk_bytes,
+            )
+            counters.rows_quarantined += len(reject_batch)
+            reject_batch = []
+
+    for row in itertools.chain(buffer, rest):
         try:
-            row: list = []
-            for raw, san in zip(raw_cols, sanitized, strict=True):
-                v = rec.get(raw)
+            out: list = []
+            for i, san in enumerate(sanitized):
+                v = row[i] if i < len(row) else None
                 if v is not None and len(v.encode("utf-8")) > cfg.max_field_bytes:
                     raise ValueError(f"поле {san} превышает лимит {cfg.max_field_bytes} байт")
-                row.append(coerce_value(v, effective[san]))
-            row.extend([run_id, content_hash, source_file, ingested_at])
-            valid_rows.append(row)
-        except Exception as exc:  # noqa: BLE001 — невалидная строка не роняет файл (I-8), едет в quarantine
-            raw_json = json.dumps(rec, ensure_ascii=False)[: cfg.max_field_bytes]
-            rejects.append(quarantine.Reject(raw_record=raw_json, reason=str(exc)))
+                out.append(coerce_value(v, effective[san]))
+            out.extend(service)
+            est = bronze_writer.estimate_row_sql(out)
+            if prefix_len + est > cfg.insert_chunk_bytes:
+                raise ValueError("строка превышает лимит длины запроса — не помещается в INSERT")
+            if valid_batch and (
+                len(valid_batch) >= cfg.insert_chunk_rows
+                or valid_sql + est > cfg.insert_chunk_bytes
+            ):
+                flush_valid()
+            valid_batch.append(out)
+            valid_sql += est
+        except Exception as exc:  # noqa: BLE001 — невалидная строка не роняет файл (I-8), в quarantine
+            reject_batch.append(_make_reject(raw_cols, row, str(exc), cfg))
+            if len(reject_batch) >= cfg.insert_chunk_rows:
+                flush_rejects()
 
-    ok = bronze_writer.insert_rows(
-        conn, source, columns, valid_rows,
-        chunk_rows=cfg.insert_chunk_rows, chunk_bytes=cfg.insert_chunk_bytes,
-    )
-    q = quarantine.write_rejects(conn, run_id, source, "bronze", rejects)
-    _log(run_id, "bronze", source=source, rows_ok=ok, rows_quarantined=q)
-    return ok, q, bronze_writer.bronze_table(source), data_schema
+    flush_valid()
+    flush_rejects()
+    _log(run_id, "bronze", source=source,
+         rows_ok=counters.rows_ok, rows_quarantined=counters.rows_quarantined)
+    return bronze_writer.bronze_table(source), data_schema
 
 
 # --- обработка одного файла ---
@@ -181,7 +249,7 @@ def process_file(
     content_hash = ""
     status = runlog.STATUS_FAILED
     error: str | None = None
-    rows_ok = rows_q = 0
+    counters = _Counters()
     tables: list[str] = []
     schema_map: dict[str, dict] = {}
 
@@ -213,16 +281,14 @@ def process_file(
         for src in reader.sources(path):
             suffix = sanitize_identifier(f"{base}_{src.suffix}") if src.suffix else ""
             source = suffix or base
-            ok, q, table, sch = _process_source(
-                conn, source, src.records, (run_id, content_hash, source_file), cfg, replay
+            table, sch = _process_source(
+                conn, source, src, (run_id, content_hash, source_file), cfg, replay, counters
             )
-            rows_ok += ok
-            rows_q += q
             if table:
                 tables.append(table)
                 schema_map[table] = sch
 
-        status = runlog.STATUS_PARTIAL if rows_q > 0 else runlog.STATUS_SUCCESS
+        status = runlog.STATUS_PARTIAL if counters.rows_quarantined > 0 else runlog.STATUS_SUCCESS
     except bronze_writer.SchemaConflict as exc:
         status = runlog.STATUS_FAILED
         error = f"schema conflict: {exc}"
@@ -240,8 +306,8 @@ def process_file(
             source_file=source_file,
             content_hash=content_hash,
             target_table=";".join(tables) or None,
-            rows_ok=rows_ok,
-            rows_quarantined=rows_q,
+            rows_ok=counters.rows_ok,
+            rows_quarantined=counters.rows_quarantined,
             schema_json=json.dumps(schema_map, ensure_ascii=False) if schema_map else None,
             status=status,
             error_message=error,
@@ -251,7 +317,7 @@ def process_file(
         except Exception as jexc:  # noqa: BLE001 — журнал не должен рушить процесс
             _log(run_id, "journal_error", error=str(jexc))
 
-    return FileResult(path, status, rows_ok, rows_q, tables, error)
+    return FileResult(path, status, counters.rows_ok, counters.rows_quarantined, tables, error)
 
 
 # --- батч ---

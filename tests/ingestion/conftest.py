@@ -36,10 +36,10 @@ def _build_config(**overrides) -> IngestConfig:
         minio_secret_key="dummy",
         raw_bucket="raw",
         max_file_bytes=500 * 1024 * 1024,
-        max_field_bytes=1_000_000,
+        max_field_bytes=200_000,
         read_chunk_rows=5000,
         insert_chunk_rows=1000,
-        insert_chunk_bytes=4_000_000,
+        insert_chunk_bytes=700_000,
         lock_path=Path(os.environ.get("TMPDIR", "/tmp")) / "loftnav-ingest-test.lock",
     )
     base.update(overrides)

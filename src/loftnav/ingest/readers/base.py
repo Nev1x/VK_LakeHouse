@@ -17,7 +17,8 @@ from typing import Protocol
 @dataclass
 class Source:
     suffix: str                       # "" для одиночного источника, имя листа для Excel
-    records: Iterator[dict[str, str | None]]
+    records: Iterator                 # header != None => Iterator[list] (позиционно); иначе dict
+    header: list[str | None] | None = None  # сырые имена колонок табличных форматов (по позиции)
 
 
 class Reader(Protocol):
