@@ -96,7 +96,7 @@ def _bronze_sources(conn) -> list[str]:
 
 
 def _normalize_row(
-    rec: dict, mapping: Mapping, source: str, run_id: str, cap: int
+    rec: dict, mapping: Mapping, source: str, run_id: str, cap: int, timeout: float
 ) -> dict:
     """bronze-строка → silver-строка. NormalizationError/ValueError → строка в quarantine."""
     silver: dict[str, object] = dict.fromkeys(silver_writer.ALL_COLUMNS)
@@ -112,7 +112,7 @@ def _normalize_row(
     for field_name, spec in mapping.fields.items():
         raw = rec.get(spec.input) if spec.input else None
         raw = None if raw is None else str(raw)
-        val = spec.apply(raw, cap)
+        val = spec.apply(raw, cap, timeout)
         if not sanity_ok(field_name, val, SANITY_DEFAULTS):
             raise NormalizationError(f"поле {field_name}={val!r} вне sanity-диапазона")
         silver[field_name] = val
@@ -154,7 +154,10 @@ def _process_partition(conn, source, content_hash, mapping, run_id, tcfg) -> tup
             rec = dict(zip(cols, row, strict=True))
             try:
                 silver_rows.append(
-                    _normalize_row(rec, mapping, source, run_id, tcfg.regex_value_cap)
+                    _normalize_row(
+                        rec, mapping, source, run_id,
+                        tcfg.regex_value_cap, tcfg.regex_timeout_sec,
+                    )
                 )
             except (NormalizationError, ValueError) as exc:
                 raw = json.dumps(rec, ensure_ascii=False, default=str)[: tcfg.regex_value_cap]
@@ -191,6 +194,9 @@ def _transform_one(conn, source: str, reprocess: bool, tcfg: TransformConfig) ->
         last_hash = _last_config_hash(conn, source)
         if reprocess:
             silver_writer.delete_source(conn, source)
+            # симметрично silver DELETE: чистим quarantine источника, иначе reject задваиваются
+            # при повторных --reprocess (WARNING-1)
+            quarantine.clear_rejects(conn, "silver", source)
             partitions = _distinct_hashes(conn, source)
             _log(run_id, "reprocess", source=source, partitions=len(partitions))
         else:
@@ -271,11 +277,14 @@ def run_transform(
         conn = get_connection()
         try:
             silver_writer.ensure_table(conn)
-            sources = _bronze_sources(conn)
-            if source_filter:
-                sources = [s for s in sources if s == source_filter]
-            if reprocess and reprocess not in sources:
-                sources.append(reprocess)
+            if reprocess:
+                # --reprocess <source>: переигрываем ТОЛЬКО указанный источник (INFO-2),
+                # не трогая инкрементально остальные (меньше blast radius)
+                sources = [reprocess]
+            else:
+                sources = _bronze_sources(conn)
+                if source_filter:
+                    sources = [s for s in sources if s == source_filter]
             results = [
                 _transform_one(conn, s, reprocess == s, tcfg) for s in sources
             ]

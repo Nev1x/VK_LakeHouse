@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import tempfile
+import time
 import uuid
 from decimal import Decimal
 from pathlib import Path
@@ -183,6 +184,69 @@ def test_config_nonexistent_column(tmp_path: Path) -> None:
             "WHERE stage='transform' AND source_file=? ORDER BY started_at DESC LIMIT 1", [src]
         )[0]
         assert st[0] == "failed" and "nonexistent" in st[1]
+    finally:
+        _cleanup(src)
+
+
+def test_reprocess_clears_quarantine(tmp_path: Path) -> None:
+    """Двойной --reprocess → reject-строки НЕ задваиваются (quarantine чистится, WARNING-1)."""
+    src = f"itrq_{uuid.uuid4().hex[:8]}"
+    _ingest_csv("id;price;area;rooms\n1;5000;45,5;2\n2;0;60,0;3\n", src)  # строка 2 -> reject
+    _write_config(tmp_path, src, _CONFIG)
+    tcfg = _tcfg(tmp_path)
+    rej_sql = f'SELECT count(*) FROM iceberg.quarantine."silver_{src}_rejects"'
+    try:
+        run_transform(src, None, tcfg)
+        assert _q(rej_sql)[0][0] == 1
+        run_transform(None, src, tcfg)   # --reprocess #1
+        assert _q(rej_sql)[0][0] == 1    # не 2
+        run_transform(None, src, tcfg)   # --reprocess #2
+        assert _q(rej_sql)[0][0] == 1    # не 3
+    finally:
+        _cleanup(src)
+
+
+def test_reprocess_only_target_source(tmp_path: Path) -> None:
+    """--reprocess <A> трогает ТОЛЬКО источник A, не B (INFO-2)."""
+    a = f"ita_{uuid.uuid4().hex[:8]}"
+    b = f"itb_{uuid.uuid4().hex[:8]}"
+    for s in (a, b):
+        _ingest_csv("id;price;area;rooms\n1;5000;45,5;2\n", s)
+        _write_config(tmp_path, s, _CONFIG)
+    tcfg = _tcfg(tmp_path)
+    cnt_sql = (
+        "SELECT count(*) FROM iceberg.ops.pipeline_runs "
+        "WHERE stage='transform' AND source_file=?"
+    )
+    try:
+        run_transform(None, None, tcfg)          # обработать оба
+        b_before = _q(cnt_sql, [b])[0][0]
+        run_transform(None, a, tcfg)             # --reprocess A
+        assert _q(cnt_sql, [b])[0][0] == b_before  # у B новых журнальных записей нет
+    finally:
+        _cleanup(a)
+        _cleanup(b)
+
+
+def test_regex_timeout_quarantine(tmp_path: Path) -> None:
+    """Патологический regex на коротком значении → reject timeout, не висит (CRITICAL-1)."""
+    src = f"itg_{uuid.uuid4().hex[:8]}"
+    long_a = "a" * 30 + "!"       # < cap, но catastrophic backtracking для (a+)+$
+    _ingest_csv(f"id;price;area;rooms;code\n1;5000;45,5;2;{long_a}\n2;7200;60,0;3;x\n", src)
+    _write_config(
+        tmp_path, src,
+        _CONFIG + '[fields.district]\ninput = "code"\n'
+        'regex_replace = { pattern = "(a+)+$", replacement = "z" }\n',
+    )
+    tcfg = dataclasses.replace(_tcfg(tmp_path), regex_timeout_sec=0.5)
+    start = time.monotonic()
+    try:
+        assert run_transform(src, None, tcfg) == EXIT_OK
+        assert time.monotonic() - start < 15  # не подвис (иначе держал бы lock)
+        silver = _scount(src)
+        rej = _q(f'SELECT count(*), min(reason) FROM iceberg.quarantine."silver_{src}_rejects"')[0]
+        assert silver == 1 and rej[0] == 1          # строка 2 (code=x) ок, строка 1 — timeout
+        assert "уложился" in rej[1] or "regex" in rej[1].lower()
     finally:
         _cleanup(src)
 

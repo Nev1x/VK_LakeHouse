@@ -41,13 +41,18 @@ class FieldSpec:
     cast: str | None = None
     default: object | None = None
 
-    def apply(self, raw: str | None, cap: int) -> object:
-        """Применяет примитивы в фиксированном порядке; NormalizationError → строка в quarantine."""
+    def apply(self, raw: str | None, cap: int, timeout: float = 2.0) -> object:
+        """Применяет примитивы в фиксированном порядке; NormalizationError → строка в quarantine.
+
+        timeout — cap ВРЕМЕНИ regex-примитивов (SIGALRM watchdog, CRITICAL-1).
+        """
         v: object = raw
         if isinstance(v, str) and self.regex_replace is not None:
-            v = normalize.regex_replace(v, self.regex_replace[0], self.regex_replace[1], cap)
+            v = normalize.regex_replace(
+                v, self.regex_replace[0], self.regex_replace[1], cap, timeout
+            )
         if isinstance(v, str) and self.regex_extract is not None:
-            v = normalize.regex_extract(v, self.regex_extract, cap)
+            v = normalize.regex_extract(v, self.regex_extract, cap, timeout)
         if v is not None and self.enum_map is not None:
             key = normalize.casefold_trim(str(v))
             if key not in self.enum_map:

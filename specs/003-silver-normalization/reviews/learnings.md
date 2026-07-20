@@ -20,3 +20,9 @@
   при all-NULL колонках.
 - **Deviations:** отдельные демо-источники (фикстуры 002 не подходят под обязательные поля);
   length-prefix в id-хэше.
+
+## stage-3 (fix-цикл после stage-4)
+- **Learnings:** ReDoS-защита по ДЛИНЕ входа не закрывает catastrophic backtracking на коротком
+  значении — нужен лимит ВРЕМЕНИ; CPython 3.12 `re` реагирует на SIGALRM во время matching
+  (эмпирически подтверждено kulibin до реализации — I-13), поэтому setitimer-watchdog работает
+  без процессной изоляции; reprocess обязан чистить quarantine симметрично silver (иначе дубли).

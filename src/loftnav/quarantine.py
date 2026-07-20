@@ -29,6 +29,17 @@ def rejects_table(layer: str, source: str) -> str:
     return f"{QUARANTINE_NS}.{quote_ident(name)}"
 
 
+def clear_rejects(conn, layer: str, source: str) -> None:
+    """Полная очистка reject-таблицы источника — симметрично silver DELETE на reprocess (WARNING-1).
+
+    reject-таблица per-source (все строки = этот source+layer) → DROP IF EXISTS полностью снимает
+    накопленные дубли; следующая запись rejects пересоздаёт таблицу.
+    """
+    cur = conn.cursor()
+    cur.execute(f"DROP TABLE IF EXISTS {rejects_table(layer, source)}")
+    cur.fetchall()
+
+
 def _ensure_table(conn, table: str) -> None:
     cur = conn.cursor()
     cur.execute(

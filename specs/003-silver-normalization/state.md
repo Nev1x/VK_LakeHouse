@@ -5,7 +5,7 @@
 - Scope: feature
 - Ticket: —
 - Started: 2026-07-19T23:29:52Z
-- Updated: 2026-07-20T00:29:55Z
+- Updated: 2026-07-20T01:01:01Z
 - Quality-HEAD: —
 
 ## Stages
@@ -25,7 +25,7 @@
 
 - confidence-stage-1-creative: green — spec-lint OK 10/10; развилки аналитиков закрыты решениями в FR (TOML, MERGE, DECIMAL, explicit reprocess) (2026-07-19T23:36:49Z)
 - confidence-stage-2-audit: green — spec-lint OK, plan-lint OK (21/21, 0 overreach), constitution 0/0/0 первым прогоном; approve по делегации (2026-07-19T23:48:02Z)
-- confidence-stage-3-dev: green — сам прогнал: pytest 74 passed, ruff clean, smoke 4 passed, SELECT silver 6/6 distinct с Decimal, reprocess-протокол и чистый transform подтверждены; units 4/4 (2026-07-20T00:29:55Z)
+- confidence-stage-3-dev: green — фиксы верифицированы лично: pytest 78 passed, ruff clean, smoke 4 passed, ReDoS-timeout тесты за 1с (не виснет), live-transform с патолог. конфигом exit 0; units 4/4 (2026-07-20T01:01:01Z)
 - confidence-stage-4-quality: —
 
 > Файл ведёт `scripts/pipeline-state.sh` — чекбоксы, гейты и confidence руками не редактируются;

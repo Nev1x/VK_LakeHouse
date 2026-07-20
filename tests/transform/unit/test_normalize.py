@@ -20,7 +20,7 @@ def test_cast_decimal_exact_no_float() -> None:
 
 
 def test_regex_replace_comma_decimal() -> None:
-    v = normalize.regex_replace("1234,56", ",", ".", 64 * 1024)
+    v = normalize.regex_replace("1234,56", ",", ".", 64 * 1024, timeout=2.0)
     assert normalize.cast_decimal(v) == Decimal("1234.56")
 
 
@@ -53,13 +53,25 @@ def test_casts() -> None:
 
 
 def test_regex_value_cap_blocks_long_value() -> None:
-    """ReDoS defense: значение длиннее cap → ошибка ДО запуска regex (bounded время)."""
-    pathological = "(a+)+$"
+    """ReDoS defense (слой 1): значение длиннее cap → ошибка ДО запуска regex."""
     payload = "a" * 100_000  # > cap
     start = time.monotonic()
     with pytest.raises(normalize.NormalizationError, match="ReDoS"):
-        normalize.regex_replace(payload, pathological, "x", cap=64 * 1024)
-    assert time.monotonic() - start < 1.0  # не зависли на катастрофическом backtracking
+        normalize.regex_replace(payload, "(a+)+$", "x", cap=64 * 1024, timeout=2.0)
+    assert time.monotonic() - start < 1.0
+
+
+def test_regex_time_limit_blocks_catastrophic() -> None:
+    """ReDoS defense (слой 2, CRITICAL-1): короткое значение, но backtracking по ВРЕМЕНИ.
+
+    cap длины НЕ спасает ((a+)+$ на 30 символах висит бесконечно) — SIGALRM-watchdog прерывает.
+    """
+    val = "a" * 30 + "!"          # < cap, но катастрофа backtracking
+    start = time.monotonic()
+    with pytest.raises(normalize.RegexTimeout, match="уложился"):
+        normalize.regex_replace(val, "(a+)+$", "x", cap=64 * 1024, timeout=1.0)
+    elapsed = time.monotonic() - start
+    assert elapsed < 2.5, f"watchdog не прервал вовремя: {elapsed:.1f}s"
 
 
 @pytest.mark.parametrize(

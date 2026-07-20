@@ -21,6 +21,16 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class IngestConfig:
     minio_endpoint_url: str
@@ -77,7 +87,8 @@ class TransformConfig:
     read_chunk_rows: int          # fetchmany bronze (T5)
     merge_chunk_rows: int
     merge_chunk_bytes: int        # бюджет длины текста MERGE (символы)
-    regex_value_cap: int          # cap длины значения до regex (ReDoS defense, T4)
+    regex_value_cap: int          # cap длины значения до regex (ReDoS defense-in-depth, T4)
+    regex_timeout_sec: float      # cap ВРЕМЕНИ regex-примитива (SIGALRM watchdog, CRITICAL-1)
     lock_path: Path
 
     @staticmethod
@@ -88,6 +99,7 @@ class TransformConfig:
             merge_chunk_rows=_int_env("LOFTNAV_MERGE_CHUNK_ROWS", 1000),
             merge_chunk_bytes=_int_env("LOFTNAV_MERGE_CHUNK_BYTES", 700_000),
             regex_value_cap=_int_env("LOFTNAV_REGEX_VALUE_CAP", 64 * 1024),
+            regex_timeout_sec=_float_env("LOFTNAV_REGEX_TIMEOUT_SEC", 2.0),
             lock_path=pipeline_lock_path(),
         )
 

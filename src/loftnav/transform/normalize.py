@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+import signal
+from contextlib import contextmanager
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 _CENTS = Decimal("0.01")
@@ -29,18 +31,49 @@ class NormalizationError(ValueError):
     """Значение не прошло нормализацию → строка в quarantine с этой причиной."""
 
 
+class RegexTimeout(NormalizationError):
+    """Regex не уложился в отведённое ВРЕМЯ (catastrophic backtracking) → строка в quarantine."""
+
+
 def casefold_trim(s: str) -> str:
     return s.strip().casefold()
 
 
-def regex_replace(value: str, pattern: str, replacement: str, cap: int) -> str:
-    _guard_len(value, cap)
-    return re.sub(pattern, replacement, value)
+@contextmanager
+def _time_limit(seconds: float):
+    """Watchdog ВРЕМЕНИ через SIGALRM (CRITICAL-1): cap длины НЕ ограничивает время regex.
+
+    CPython `re` проверяет сигналы во время matching (проверено эмпирически) — setitimer перебивает
+    зависший паттерн. Только main-thread (CLI single-threaded); прежний хендлер восстанавливается.
+    """
+    if seconds <= 0:
+        yield
+        return
+
+    def _handler(signum, frame):
+        raise RegexTimeout(
+            f"regex не уложился в {seconds}s — возможен catastrophic backtracking"
+        )
+
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)   # снять таймер
+        signal.signal(signal.SIGALRM, old)         # восстановить прежний хендлер
 
 
-def regex_extract(value: str, pattern: str, cap: int) -> str | None:
+def regex_replace(value: str, pattern: str, replacement: str, cap: int, timeout: float) -> str:
     _guard_len(value, cap)
-    m = re.search(pattern, value)
+    with _time_limit(timeout):
+        return re.sub(pattern, replacement, value)
+
+
+def regex_extract(value: str, pattern: str, cap: int, timeout: float) -> str | None:
+    _guard_len(value, cap)
+    with _time_limit(timeout):
+        m = re.search(pattern, value)
     if m is None:
         return None
     return m.group(1) if m.groups() else m.group(0)

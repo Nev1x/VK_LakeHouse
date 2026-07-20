@@ -29,3 +29,16 @@
 | 2026-07-20T00:29:54Z | agent:kulibin:done | u1-u4 DONE после восстановления с обрыва (состояние перепроверено по факту); spike MERGE успешен; 74 passed; transform-demo 17с, инкремент 7с; дефект partial-повтора найден и закрыт |
 | 2026-07-20T00:29:55Z | confidence:stage-3-dev | level=green reason=сам прогнал: pytest 74 passed, ruff clean, smoke 4 passed, SELECT silver 6/6 distinct с Decimal, reprocess-протокол и чистый transform подтверждены; units 4/4 |
 | 2026-07-20T00:29:55Z | stage-3-dev:done | - |
+| 2026-07-20T00:30:05Z | stage-4-quality:start | checkpoint=8658bfeeefcea1f510760e34babf422d6c0acdc1 |
+| 2026-07-20T00:30:09Z | agent:qa-verifier:start | адверсарная проверка 003 |
+| 2026-07-20T00:46:38Z | agent:qa-verifier:done | инъекции/sanity/last-write-wins/idempotency PASS адверсарно; CRIT 1 (ReDoS: cap длины не ограничивает ВРЕМЯ regex, паттерн (a+)+ на 25 символах вешает transform, единый lock блокирует ingest, нужен kill -9); WARN 1 (quarantine копит дубли reject при reprocess); INFO 2 |
+| 2026-07-20T00:46:38Z | stage-3-dev:invalidated | reset from stage-3-dev |
+| 2026-07-20T00:46:38Z | stage-4-quality:invalidated | reset from stage-3-dev |
+| 2026-07-20T00:46:38Z | stage-3-dev:start | - |
+| 2026-07-20T01:00:54Z | unit-done | u1-refactors |
+| 2026-07-20T01:00:55Z | unit-done | u2-mapping-normalize |
+| 2026-07-20T01:00:57Z | unit-done | u3-silver-write |
+| 2026-07-20T01:00:59Z | unit-done | u4-cli-demo-docs |
+| 2026-07-20T01:01:00Z | agent:kulibin:done | фикс-цикл: SIGALRM-watchdog ограничивает ВРЕМЯ regex (CPython 3.12 re реагирует на сигнал, подтверждено эмпирически) → timeout=quarantine; reprocess чистит quarantine + сужен до одного источника; 78 passed |
+| 2026-07-20T01:01:01Z | confidence:stage-3-dev | level=green reason=фиксы верифицированы лично: pytest 78 passed, ruff clean, smoke 4 passed, ReDoS-timeout тесты за 1с (не виснет), live-transform с патолог. конфигом exit 0; units 4/4 |
+| 2026-07-20T01:01:01Z | stage-3-dev:done | - |
