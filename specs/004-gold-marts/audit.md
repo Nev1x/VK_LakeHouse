@@ -33,3 +33,7 @@
 | 2026-07-20T01:38:03Z | stage-4-quality:start | checkpoint=725c3c7d4f191f4e2ec2ec3d7277c1d037cc889e |
 | 2026-07-20T01:38:07Z | agent:qa-verifier:start | адверсарная проверка 004 |
 | 2026-07-20T01:49:09Z | agent:qa-verifier:done | проход 1 PASS без фикс-цикла: CRIT 0 WARN 0 INFO 3; балансы/is_loft/деление-на-ноль/атомарность-swap/orphan-cleanup/детерминизм подтверждены адверсарно |
+| 2026-07-20T01:49:11Z | quality-head | 3a1f49ee1f355a49d9be45294c7f8fd786a30478 |
+| 2026-07-20T01:49:19Z | quality-verdict | PASS — matrix 27/27 DONE; pytest 98 passed + ruff clean + smoke 4 passed; адверсарно CRIT 0 WARN 0: балансы 11=11, is_loft NULL, деление-на-ноль, атомарность swap, детерминизм; retry 0 |
+| 2026-07-20T01:49:23Z | confidence:stage-4-quality | level=green reason=вердикт PASS с evidence; сигналы прогнаны лично (pytest/ruff/smoke/баланс/is_loft) |
+| 2026-07-20T01:49:23Z | stage-4-quality:done | - |
