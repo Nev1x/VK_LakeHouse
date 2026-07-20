@@ -45,3 +45,7 @@
 | 2026-07-20T01:01:09Z | stage-4-quality:start | checkpoint=6d686a55f05e881fbcdbd2929493da2350faf53d |
 | 2026-07-20T01:01:13Z | agent:qa-director:start | проход 2: верификация фиксов ReDoS/quarantine/reprocess |
 | 2026-07-20T01:02:16Z | agent:qa-director:done | проход 2: фиксы верифицированы лично (ReDoS-timeout за 1с, live exit 0), матрица 27/27, CRITICAL 0, вердикт PASS |
+| 2026-07-20T01:02:17Z | quality-head | 2942497585b7ac4e31826519df8962d6833471db |
+| 2026-07-20T01:02:25Z | quality-verdict | PASS — matrix 27/27 DONE; pytest 78 passed + ruff clean + smoke 4 passed; адверсарно: инъекции/last-write-wins/sanity отбиты, ReDoS закрыт по времени; CRITICAL 0 после fix (retry 1/2) |
+| 2026-07-20T01:02:30Z | confidence:stage-4-quality | level=green reason=вердикт PASS с evidence текущей попытки; сигналы прогнаны лично |
+| 2026-07-20T01:02:30Z | stage-4-quality:done | - |
