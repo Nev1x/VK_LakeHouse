@@ -25,3 +25,9 @@
 ## stage-3 (fix после stage-4)
 - **Learnings:** общий lock-модуль ingest/run.py используется всеми стадиями — сообщение об
   ошибке должно быть нейтральным ('конвейер уже занят'), не привязанным к ingest.
+
+## stage-4
+- **Learnings:** финальная фича замкнула пайплайн; адверсарный QA подтвердил independent
+  parquet-read (главный DoD-критерий 006) 3-осевой сверкой row_count; immutability fail-loud
+  и allowlist S3Store — ключевые защиты egress-зоны.
+- **Deviations:** проход 1 WARNING (lock-текст) → fix (retry 1).

@@ -42,3 +42,6 @@
 | 2026-07-20T08:06:41Z | agent:kulibin:done | фикс WARNING: lock-текст 'ingest уже идёт'→'конвейер уже занят' (общий модуль для всех стадий); 133 passed |
 | 2026-07-20T08:06:41Z | confidence:stage-3-dev | level=green reason=фикс lock-текста верифицирован: pytest 133 passed, ruff clean, тесты не завязаны на старый текст; units 4/4 |
 | 2026-07-20T08:06:41Z | stage-3-dev:done | - |
+| 2026-07-20T08:06:54Z | stage-4-quality:start | checkpoint=137f5dc03d5a3f0387dee377333778c3c44a8d0c |
+| 2026-07-20T08:06:58Z | agent:qa-director:start | проход 2: верификация фикса lock-текста |
+| 2026-07-20T08:08:09Z | agent:qa-director:done | проход 2: фикс lock-текста верифицирован, матрица 26/26, CRITICAL 0, вердикт PASS; пайплайн замкнут |
