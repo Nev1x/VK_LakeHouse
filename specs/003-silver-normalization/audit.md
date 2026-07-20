@@ -42,3 +42,6 @@
 | 2026-07-20T01:01:00Z | agent:kulibin:done | фикс-цикл: SIGALRM-watchdog ограничивает ВРЕМЯ regex (CPython 3.12 re реагирует на сигнал, подтверждено эмпирически) → timeout=quarantine; reprocess чистит quarantine + сужен до одного источника; 78 passed |
 | 2026-07-20T01:01:01Z | confidence:stage-3-dev | level=green reason=фиксы верифицированы лично: pytest 78 passed, ruff clean, smoke 4 passed, ReDoS-timeout тесты за 1с (не виснет), live-transform с патолог. конфигом exit 0; units 4/4 |
 | 2026-07-20T01:01:01Z | stage-3-dev:done | - |
+| 2026-07-20T01:01:09Z | stage-4-quality:start | checkpoint=6d686a55f05e881fbcdbd2929493da2350faf53d |
+| 2026-07-20T01:01:13Z | agent:qa-director:start | проход 2: верификация фиксов ReDoS/quarantine/reprocess |
+| 2026-07-20T01:02:16Z | agent:qa-director:done | проход 2: фиксы верифицированы лично (ReDoS-timeout за 1с, live exit 0), матрица 27/27, CRITICAL 0, вердикт PASS |
