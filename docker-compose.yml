@@ -144,6 +144,14 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?GRAFANA_ADMIN_USER не задан}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD не задан}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # --- фича 005 (аддитивно): trino-datasource плагин + креды для env-подстановки provisioning ---
+      # Установка с официального GitHub-релиза по URL (пин версии): каталог grafana.com в этом
+      # окружении отдаёт 451 (заблокирован), GitHub доступен. Плагин совместим (grafanaDependency>=8.3).
+      # GF_PLUGINS_PREINSTALL (12.x-штатный, GF_INSTALL_PLUGINS deprecated) поддерживает id@ver@url.
+      GF_PLUGINS_PREINSTALL_SYNC: "trino-datasource@1.0.11@https://github.com/trinodb/grafana-trino/releases/download/v1.0.11/trino-datasource-1.0.11.zip"
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: trino-datasource
+      TRINO_USER: ${TRINO_USER:?TRINO_USER не задан}
+      TRINO_PASSWORD: ${TRINO_PASSWORD:?TRINO_PASSWORD не задан}
       TZ: ${TZ:-UTC}
     volumes:
       - grafana_data:/var/lib/grafana

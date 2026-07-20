@@ -2,7 +2,7 @@
 # macOS/BSD-совместимо: логика в POSIX-sh рецептах, без GNU-специфики make.
 .POSIX:
 .PHONY: help up down smoke ps logs deps gen-auth bootstrap ingest ingest-demo \
-        transform transform-demo build-gold build-gold-demo check-env check-docker
+        transform transform-demo build-gold build-gold-demo grafana-smoke check-env check-docker
 
 COMPOSE = docker compose
 VENV    = .venv
@@ -57,6 +57,10 @@ down: check-docker
 
 smoke: check-env deps
 	@$(PY) -m pytest -q tests/smoke
+
+# grafana-smoke (фича 005): HTTP API проверки Grafana поверх поднятого стека (datasource/health/дашборды)
+grafana-smoke: check-env deps
+	@$(PY) -m pytest -q tests/grafana/integration
 
 # ingestion (фича 002); exit code CLI пробрасывается (2 = частичный успех при битом файле в батче)
 ingest: check-env deps

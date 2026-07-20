@@ -18,6 +18,8 @@ dev = [
     # requests используется smoke (001) и integration-тестами напрямую — явный dev-пин
     # (в 001 доезжал транзитивно через trino-клиент, пробел закрыт здесь).
     "requests==2.34.2",
+    # pyyaml — парсинг provisioning-YAML в secret/структурных unit-тестах grafana (005), test-only
+    "pyyaml==6.0.2",
 ]
 
 [project.scripts]

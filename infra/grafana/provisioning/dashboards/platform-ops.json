@@ -1,0 +1,114 @@
+{
+  "uid": "loftnav-platform-ops",
+  "title": "Операции платформы",
+  "tags": ["loftnav", "ops"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "",
+  "time": { "from": "now-7d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_TRINO",
+        "label": "Trino datasource",
+        "type": "datasource",
+        "query": "trino-datasource",
+        "hide": 2,
+        "refresh": 1,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Последний прогон по stage (bounded time-range)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT stage, status, finished_at FROM (SELECT stage, status, finished_at, row_number() OVER (PARTITION BY stage ORDER BY started_at DESC) AS rn FROM iceberg.ops.pipeline_runs WHERE started_at >= $__timeFrom()) WHERE rn = 1 ORDER BY stage"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Свежесть: возраст последнего success по stage (сек)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 86400 },
+              { "color": "red", "value": 604800 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT stage, date_diff('second', max(finished_at), current_timestamp) AS age_seconds FROM iceberg.ops.pipeline_runs WHERE status = 'success' AND started_at >= $__timeFrom() GROUP BY stage ORDER BY stage"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Принято / отбраковано по stage (за период)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT stage, sum(rows_ok) AS accepted, sum(rows_quarantined) AS rejected FROM iceberg.ops.pipeline_runs WHERE started_at >= $__timeFrom() AND started_at <= $__timeTo() GROUP BY stage ORDER BY stage"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Quarantine-таблицы (information_schema)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT table_name FROM iceberg.information_schema.tables WHERE table_schema = 'quarantine' ORDER BY table_name"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Последние failed-прогоны (bounded time + LIMIT)",
+      "type": "table",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT started_at, run_id, stage, source_file, error_message FROM iceberg.ops.pipeline_runs WHERE status = 'failed' AND started_at >= $__timeFrom() ORDER BY started_at DESC LIMIT 200"
+        }
+      ]
+    }
+  ]
+}

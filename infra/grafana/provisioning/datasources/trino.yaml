@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: Trino
+    uid: loftnav-trino
+    type: trino-datasource
+    access: proxy
+    url: https://trino:8443
+    isDefault: true
+    editable: false
+    basicAuth: true
+    basicAuthUser: ${TRINO_USER}
+    jsonData:
+      tlsSkipVerify: true
+    secureJsonData:
+      basicAuthPassword: ${TRINO_PASSWORD}

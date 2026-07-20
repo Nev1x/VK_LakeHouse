@@ -1,0 +1,82 @@
+{
+  "uid": "loftnav-apartments",
+  "title": "Квартиры",
+  "tags": ["loftnav", "apartments"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "",
+  "time": { "from": "now-90d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_TRINO",
+        "label": "Trino datasource",
+        "type": "datasource",
+        "query": "trino-datasource",
+        "hide": 2,
+        "refresh": 1,
+        "current": {}
+      },
+      {
+        "name": "district",
+        "label": "Район",
+        "type": "query",
+        "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+        "definition": "SELECT DISTINCT district FROM iceberg.gold.mart_price_area_by_district ORDER BY district",
+        "query": "SELECT DISTINCT district FROM iceberg.gold.mart_price_area_by_district ORDER BY district",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Цены и площади по районам (atemporal; фильтр district)",
+      "type": "table",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT district, listing_count, avg_price_rub, median_price_rub, min_price_rub, max_price_rub, avg_price_per_m2, avg_area_m2 FROM iceberg.gold.mart_price_area_by_district WHERE district IN (${district:singlequote}) ORDER BY listing_count DESC"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Срезы стиль / ремонт / мебель (atemporal; is_small_sample виден)",
+      "type": "table",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 9 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 1,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT style_norm, renovation_style_norm, has_renovation, has_furniture, listing_count, avg_price_rub, median_price_rub, avg_area_m2, is_small_sample FROM iceberg.gold.mart_style_renovation_furniture ORDER BY listing_count DESC, style_norm"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Динамика загрузок по дням (time-picker по load_date)",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
+      "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": 0,
+          "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
+          "rawSql": "SELECT CAST(load_date AS TIMESTAMP) AS time, listings_added, listings_added_cumulative FROM iceberg.gold.mart_listing_dynamics WHERE load_date BETWEEN CAST($__timeFrom() AS DATE) AND CAST($__timeTo() AS DATE) ORDER BY load_date"
+        }
+      ]
+    }
+  ]
+}
