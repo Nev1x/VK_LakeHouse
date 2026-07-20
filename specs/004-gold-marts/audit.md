@@ -30,3 +30,6 @@
 | 2026-07-20T01:37:54Z | agent:kulibin:done | u1-u4 DONE; spike: CREATE OR REPLACE атомарен (выбран), approx_percentile CAST DOUBLE стабилен, snapshot-пин FOR VERSION AS OF; 98 passed; build-gold 10с; баланс 11=11, is_loft все NULL |
 | 2026-07-20T01:37:55Z | confidence:stage-3-dev | level=green reason=сам прогнал: pytest 98 passed, ruff clean, smoke 4 passed, 4 gold-таблицы, баланс 11=11, is_loft 0 non-null; units 4/4 |
 | 2026-07-20T01:37:55Z | stage-3-dev:done | - |
+| 2026-07-20T01:38:03Z | stage-4-quality:start | checkpoint=725c3c7d4f191f4e2ec2ec3d7277c1d037cc889e |
+| 2026-07-20T01:38:07Z | agent:qa-verifier:start | адверсарная проверка 004 |
+| 2026-07-20T01:49:09Z | agent:qa-verifier:done | проход 1 PASS без фикс-цикла: CRIT 0 WARN 0 INFO 3; балансы/is_loft/деление-на-ноль/атомарность-swap/orphan-cleanup/детерминизм подтверждены адверсарно |

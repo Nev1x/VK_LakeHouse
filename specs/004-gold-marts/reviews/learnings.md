@@ -18,3 +18,8 @@
   лучше rename-swap (нет not-found окна для читателя-дашборда); FOR VERSION AS OF пинит чтение
   на snapshot → детерминизм агрегатов; approx_percentile стабилен на фикс-snapshot.
 - **Deviations:** CREATE OR REPLACE вместо rename-swap (spike-подтверждённое улучшение).
+
+## stage-4
+- **Learnings:** первая фича с чистым адверсарным проходом (0 CRIT/WARN) — spike-first подход
+  и уроки 002/003 (bind, честные счётчики, self-verify) окупились превентивно; CREATE OR
+  REPLACE снял целый класс swap-рисков.
