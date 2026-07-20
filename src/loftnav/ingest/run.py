@@ -86,7 +86,7 @@ def process_lock(cfg: IngestConfig) -> Iterator[None]:
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             else:
                 raise RuntimeError(
-                    f"ingest уже идёт (lock {path}); дождитесь завершения или снимите lock"
+                    f"конвейер уже занят (lock {path}); дождитесь завершения или снимите lock"
                 ) from None
         os.write(fd, str(os.getpid()).encode())
         os.close(fd)

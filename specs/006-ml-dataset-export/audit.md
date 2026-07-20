@@ -29,3 +29,16 @@
 | 2026-07-20T07:54:48Z | agent:kulibin:done | u1-u4 DONE; spike pyarrow 25.0.0 ParquetWriter streaming, MinIO CommonPrefixes+пагинация; 133 passed; parquet читается независимо 11=11; immutable put_or_fail fail-loud; allowlist S3Store; 0-HTTP; export 6с |
 | 2026-07-20T07:54:49Z | confidence:stage-3-dev | level=green reason=сам прогнал: pytest 133 passed, ruff clean, smoke 4 passed, parquet читается независимо 11=row_count манифеста, target_populated=false/photo_handling=links; units 4/4 |
 | 2026-07-20T07:54:49Z | stage-3-dev:done | - |
+| 2026-07-20T07:55:05Z | stage-4-quality:start | checkpoint=37d978e997a6771ef19adf8b274e2ac529129f19 |
+| 2026-07-20T07:55:09Z | agent:qa-verifier:start | адверсарная проверка 006 (финал) |
+| 2026-07-20T08:04:33Z | agent:qa-verifier:done | PASS адверсарно: CRIT 0, WARN 1 (унаследованный lock-текст 'ingest уже идёт' вводит в заблуждение для export/transform/build-gold), INFO 1; immutability/независимое-чтение-3-оси/integrity-sha256/allowlist/0-HTTP/детерминизм/пустой-срез/конкурентность все PASS |
+| 2026-07-20T08:04:34Z | stage-3-dev:invalidated | reset from stage-3-dev |
+| 2026-07-20T08:04:34Z | stage-4-quality:invalidated | reset from stage-3-dev |
+| 2026-07-20T08:04:34Z | stage-3-dev:start | - |
+| 2026-07-20T08:06:34Z | unit-done | u1-s3-spike |
+| 2026-07-20T08:06:36Z | unit-done | u2-read-write |
+| 2026-07-20T08:06:38Z | unit-done | u3-run-cli |
+| 2026-07-20T08:06:39Z | unit-done | u4-tests-docs |
+| 2026-07-20T08:06:41Z | agent:kulibin:done | фикс WARNING: lock-текст 'ingest уже идёт'→'конвейер уже занят' (общий модуль для всех стадий); 133 passed |
+| 2026-07-20T08:06:41Z | confidence:stage-3-dev | level=green reason=фикс lock-текста верифицирован: pytest 133 passed, ruff clean, тесты не завязаны на старый текст; units 4/4 |
+| 2026-07-20T08:06:41Z | stage-3-dev:done | - |

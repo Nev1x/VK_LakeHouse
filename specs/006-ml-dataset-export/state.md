@@ -5,7 +5,7 @@
 - Scope: feature
 - Ticket: —
 - Started: 2026-07-20T07:13:52Z
-- Updated: 2026-07-20T07:54:49Z
+- Updated: 2026-07-20T08:06:41Z
 - Quality-HEAD: —
 
 ## Stages
@@ -25,7 +25,7 @@
 
 - confidence-stage-1-creative: green — spec-lint OK 10/10; развилки закрыты (parquet+jsonl, fail-loud vNNN, фото-ссылки, детерминизм по содержимому, I-4 decision record запланирован) (2026-07-20T07:21:11Z)
 - confidence-stage-2-audit: green — spec-lint OK, plan-lint OK (20/20, 0 overreach), constitution 0/0/0 (I-4 PASS — egress-зона); approve по делегации; устав-PATCH вынесен владельцу отдельно (2026-07-20T07:30:50Z)
-- confidence-stage-3-dev: green — сам прогнал: pytest 133 passed, ruff clean, smoke 4 passed, parquet читается независимо 11=row_count манифеста, target_populated=false/photo_handling=links; units 4/4 (2026-07-20T07:54:49Z)
+- confidence-stage-3-dev: green — фикс lock-текста верифицирован: pytest 133 passed, ruff clean, тесты не завязаны на старый текст; units 4/4 (2026-07-20T08:06:41Z)
 - confidence-stage-4-quality: —
 
 > Файл ведёт `scripts/pipeline-state.sh` — чекбоксы, гейты и confidence руками не редактируются;
