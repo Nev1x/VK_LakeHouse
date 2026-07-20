@@ -45,3 +45,7 @@
 | 2026-07-20T08:06:54Z | stage-4-quality:start | checkpoint=137f5dc03d5a3f0387dee377333778c3c44a8d0c |
 | 2026-07-20T08:06:58Z | agent:qa-director:start | проход 2: верификация фикса lock-текста |
 | 2026-07-20T08:08:09Z | agent:qa-director:done | проход 2: фикс lock-текста верифицирован, матрица 26/26, CRITICAL 0, вердикт PASS; пайплайн замкнут |
+| 2026-07-20T08:08:10Z | quality-head | 607d7c1a23e04c671c164ca7afd0b6a14d1ec4d5 |
+| 2026-07-20T08:08:18Z | quality-verdict | PASS — matrix 26/26 DONE; pytest 133 passed + ruff clean + smoke 4 passed; адверсарно CRIT 0: immutability/independent-parquet-read(3-оси)/integrity-sha256/allowlist/0-HTTP/детерминизм/пустой-срез; WARNING закрыт (retry 1) |
+| 2026-07-20T08:08:23Z | confidence:stage-4-quality | level=green reason=вердикт PASS; сигналы прогнаны лично (pytest 133/ruff/smoke/independent parquet read 11=11) |
+| 2026-07-20T08:08:23Z | stage-4-quality:done | - |
