@@ -54,9 +54,18 @@ def test_both_dashboards_provisioned() -> None:
     assert "loftnav-apartments" in uids
 
 
-def test_plugin_installed() -> None:
-    resp = _get("/api/plugins/trino-datasource/settings")
+def test_plugin_installed_and_enabled() -> None:
+    """Плагин установлен И enabled — по НАДЁЖНОМУ сигналу (FR-009).
+
+    Квирк Grafana: /api/plugins/<id>/settings.enabled = false для datasource-плагинов (это
+    app-toggle, не «доступен»). Агрегатный /api/plugins?embedded=0 отдаёт фактический enabled=true.
+    Реальная работоспособность дополнительно доказана test_datasource_health_ok (health == OK).
+    """
+    resp = _get("/api/plugins?embedded=0")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body.get("id") == "trino-datasource"
-    assert body.get("info", {}).get("version") == "1.0.11"
+    items = body if isinstance(body, list) else body.get("plugins", body)
+    trino = next((p for p in items if p.get("id") == "trino-datasource"), None)
+    assert trino is not None, "плагин trino-datasource не установлен"
+    assert trino.get("enabled") is True, "плагин не enabled (агрегатный /api/plugins)"
+    assert trino.get("info", {}).get("version") == "1.0.11"

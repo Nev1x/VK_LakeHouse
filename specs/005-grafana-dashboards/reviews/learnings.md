@@ -14,3 +14,10 @@
   не в доверии хуку; Grafana provisioning env-синтаксис — $VAR/${VAR}, не $__env{} (частая
   ошибка); дашборд-панели по растущему журналу обязаны быть bounded (I-15) — time-picker+LIMIT.
 - **Deviations:** Constitution прогнан дважды (I-15 MUST-FLAG закрыт правкой); сжатый состав.
+
+## stage-3 (fix-цикл после stage-4)
+- **Learnings:** /api/plugins/<id>/settings.enabled для datasource-плагинов Grafana = app-toggle
+  (false), не «работоспособность»; надёжный сигнал — агрегатный /api/plugins + datasource
+  health OK; тест не должен полагаться на квирк-эндпоинт (ни ложной гарантии, ни ложного FAIL).
+- **Deviations:** browser-QA (semiglazka) BLOCKED — Playwright MCP не подключён в runtime;
+  documented gap (принцип 4: честный gap-отчёт, не симуляция), покрытие через API/JSON.

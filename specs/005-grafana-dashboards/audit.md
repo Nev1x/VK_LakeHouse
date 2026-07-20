@@ -31,3 +31,18 @@
 | 2026-07-20T06:58:02Z | agent:kulibin:done | u1-u4 DONE (API/JSON); spike: плагин trino-datasource v1.0.11 ПОДПИСАН (unsigned-риск снят), env , basicAuth+secureJsonData, health OK; grafana.com 451 → GF_PLUGINS_PREINSTALL_SYNC с GitHub; 114 passed; bounded-панели |
 | 2026-07-20T06:58:02Z | confidence:stage-3-dev | level=green reason=сам прогнал: pytest 114 passed, ruff clean, grafana-smoke 4 passed, datasource health OK, оба дашборда провижинятся, 0 plaintext-паролей; units 4/4 |
 | 2026-07-20T06:58:02Z | stage-3-dev:done | - |
+| 2026-07-20T06:58:16Z | stage-4-quality:start | checkpoint=dd63907c6181b12190248392d87a8e0cbc29a4eb |
+| 2026-07-20T06:58:20Z | agent:qa-verifier:start | API/JSON адверсарная проверка 005 |
+| 2026-07-20T06:58:20Z | agent:semiglazka:start | browser-QA визуальный проход дашбордов |
+| 2026-07-20T07:00:43Z | agent:semiglazka:done | BLOCKED browser-capability-unavailable: Playwright MCP не зарегистрирован в runtime; честно не симулировал (принцип 4 - documented gap, не дефект фичи); Grafana login отдаёт 200; визуальный проход дашбордов остаётся как gap, покрытие Stage 4 через API/JSON QA |
+| 2026-07-20T07:07:34Z | agent:qa-verifier:done | API/JSON PASS: CRIT 0, WARN 1 (тест-гэп: /settings enabled=false Grafana-квирк, test не проверяет enabled хотя FR-009 упоминает; плагин функционально рабочий), INFO 1 (позитив: :singlequote нейтрализует инъекцию в district); секреты/I-15-bounded/datasource-by-name/I-8/health все PASS |
+| 2026-07-20T07:07:35Z | stage-3-dev:invalidated | reset from stage-3-dev |
+| 2026-07-20T07:07:35Z | stage-4-quality:invalidated | reset from stage-3-dev |
+| 2026-07-20T07:07:35Z | stage-3-dev:start | - |
+| 2026-07-20T07:11:41Z | unit-done | u1-spike-datasource |
+| 2026-07-20T07:11:43Z | unit-done | u2-dashboards |
+| 2026-07-20T07:11:45Z | unit-done | u3-tests-make |
+| 2026-07-20T07:11:46Z | unit-done | u4-docs-qa |
+| 2026-07-20T07:11:48Z | agent:kulibin:done | фикс-цикл: тест плагина на надёжном сигнале (агрегатный /api/plugins enabled=true + health OK, не квирк /settings); browser-QA documented gap в architecture.md; 114 passed |
+| 2026-07-20T07:11:49Z | confidence:stage-3-dev | level=green reason=фикс верифицирован: grafana-тесты 16 passed на надёжном сигнале, grafana-smoke 4 passed, 114 total, ruff clean, diff только tests+architecture; units 4/4 |
+| 2026-07-20T07:11:49Z | stage-3-dev:done | - |
