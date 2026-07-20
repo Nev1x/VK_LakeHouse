@@ -9,8 +9,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from loftnav.config import IngestConfig
+from loftnav.config import IngestConfig, TransformConfig
 from loftnav.ingest.run import ingest_paths
+from loftnav.transform.run import run_transform
 
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
@@ -20,6 +21,15 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         return ingest_paths(paths, args.source, cfg)
     except RuntimeError as exc:  # lock занят / отсутствует env — читаемая ошибка, не трейс (I-8)
         print(f"loftnav ingest: {exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_transform(args: argparse.Namespace) -> int:
+    tcfg = TransformConfig.from_env()
+    try:
+        return run_transform(args.source, args.reprocess, tcfg)
+    except RuntimeError as exc:  # lock занят — читаемая ошибка (I-8)
+        print(f"loftnav transform: {exc}", file=sys.stderr)
         return 1
 
 
@@ -33,6 +43,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--source", default=None, help="имя источника (bronze-таблицы); по умолчанию — имя файла"
     )
     ingest.set_defaults(func=_cmd_ingest)
+
+    transform = sub.add_parser("transform", help="нормализовать bronze → silver.apartments_clean")
+    transform.add_argument("--source", default=None, help="обработать только один источник")
+    transform.add_argument(
+        "--reprocess", default=None, help="переиграть источник (DELETE партиции + полный пересчёт)"
+    )
+    transform.set_defaults(func=_cmd_transform)
     return parser
 
 

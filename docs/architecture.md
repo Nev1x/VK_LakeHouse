@@ -352,3 +352,135 @@ spike-тестом на живом Trino 483 (см. ниже).
 | Стратегия INSERT | execute vs executemany (spike) | multi-row `INSERT ... VALUES (?,..),(?,..)`, ОДИН execute на чанк | spike: `executemany` trino-клиента шлёт построчно (N запросов = N снапшотов = мелкие файлы); multi-row single-execute = один снапшот на чанк |
 | Инференс «уточнение по ходу» (T6) | промоция типа по ходу файла | инференс по первому read-чанку; строки, нарушающие тип на поздних чанках, → quarantine | проще и спец-совместимо (US-5): не переписываем колонку mid-batch; конфликт ВНУТРИ чанка → VARCHAR |
 | Идемпотентный статус (FR-010) | «success → skip» | `success` И `skipped` → skip | иначе повтор после skip видел бы last_status=`skipped` и делал бы свежий append (дефект найден и закрыт в этом же цикле) |
+
+---
+
+# Transform (фича 003 — silver-нормализация, as-built)
+
+CLI `loftnav transform`: разношёрстные bronze-таблицы → единая `iceberg.silver.apartments_clean`
+по декларативным TOML-маппингам per-источник (новый источник = конфиг, не код). Приведение
+типов/единиц, intra-source дедуп (MERGE, last-write-wins), инкрементальность по журналу,
+quarantine непрошедших нормализацию, явный reprocess при смене конфига.
+
+## Конвейер (на источник × bronze-партицию)
+
+`config (fail-fast валидация) → config-hash gate → anti-join новых партий → read bronze (fetchmany)
+→ normalize (примитивы) → dedup (external_id, last-write-wins) → MERGE в silver → rejects → журнал`.
+
+## CLI / Make
+
+| Команда | Действие |
+|---|---|
+| `make transform` / `loftnav transform` | обработать все источники с конфигами |
+| `loftnav transform --source <имя>` | только один источник |
+| `loftnav transform --reprocess <имя>` | DELETE партиции источника + полный пересчёт |
+| `make transform-demo` | ingest демо-источников (t_avito/t_cian/t_domclick) + transform |
+
+Exit codes: `0` — всё success/skipped; `1` — все источники failed; `2` — частично.
+
+## Схема `iceberg.silver.apartments_clean` (FROZEN, additive-only для 004/006)
+
+`WITH (format='PARQUET', format_version=2, partitioning=ARRAY['source'])`.
+
+| Колонка | Тип | Прим. |
+|---|---|---|
+| `id` | varchar | sha256 (length-prefixed `source`:`external_id` — анти-коллизия) |
+| `source`, `external_id` | varchar | ключ идентичности (партиция = source) |
+| `price_rub` | **decimal(12,2)** | точная арифметика для агрегатов 004 |
+| `area_m2` | **decimal(8,2)** | |
+| `rooms`, `floor`, `floors_total`, `metro_minutes` | bigint | |
+| `address`, `district`, `style`, `renovation_style` | varchar | |
+| `has_renovation`, `has_furniture` | boolean | |
+| `photo_urls` | varchar | JSON-массив as-is |
+| `listed_at` | timestamp | |
+| `_source_run_id`, `_source_content_hash`, `_mapping_config_hash` | varchar | провенанс |
+| `_ingested_at`, `_transformed_at` | timestamp | last-write-wins по `_ingested_at` |
+| `_transform_run_id` | varchar | |
+
+Обязательность (`id/source/external_id/price_rub/area_m2`) — через quarantine, не SQL-constraint.
+`silver_columns_version = 1` (в `schema_json` журнала).
+
+## Формат mapping-конфига (`configs/mapping/<источник>.toml`)
+
+tomllib (stdlib, 0 новых зависимостей). Закрытый набор примитивов, НИКАКОГО eval/exec (I-7/I-14).
+Порядок применения: `regex_replace → regex_extract → enum_map | cast → unit_convert → default`.
+
+```toml
+[meta]
+external_id = "id"            # bronze-колонка identity (нет → синтетический хэш полей, best-effort)
+
+[fields.price_rub]
+input = "price"               # bronze-колонка
+cast = "decimal"             # decimal | bigint | boolean | timestamp | varchar
+unit_convert = { from = "thousands_rub", to = "rub" }   # факторы: thousands_rub/mln_rub/sotka…
+
+[fields.area_m2]
+input = "area"
+regex_replace = { pattern = ",", replacement = "." }    # запятая-десятичная → точка ДО cast
+cast = "decimal"
+
+[fields.has_renovation]
+input = "renov"
+enum_map = { "евро" = true, "черновая" = false }        # СТРОГО dict exact-match (casefold+trim)
+```
+
+Валидация при старте (fail-fast): неизвестное silver-поле/ключ/cast → ошибка; input-колонка
+отсутствует в bronze-схеме (DESCRIBE) → ошибка с именем колонки; непокрытые bronze-колонки → warning.
+Деньги/площадь: `str → Decimal → quantize(0.01)` — БЕЗ промежуточного float (точность). Regex —
+с cap длины значения `LOFTNAV_REGEX_VALUE_CAP` (64KB) до применения (ReDoS defense-in-depth).
+
+## Инкрементальность и reprocess (FR-007/FR-008)
+
+Единица обработки — (источник × bronze `_content_hash`). Anti-join по журналу `stage='transform'`:
+партиция со статусом success/skipped/**partial** пропускается (partial терминален — MERGE
+идемпотентен, повтор лишь копил бы quarantine); переобрабатывается только `failed`. Пустой
+инкремент → 0 партий, быстрый выход. `_mapping_config_hash` конфига пишется в silver-строки и в
+`schema_json` журнала; при расхождении текущего хэша с последним успешным — transform источника
+**останавливается** с подсказкой `loftnav transform --reprocess <источник>`. Reprocess =
+`DELETE FROM apartments_clean WHERE source = ?` (bind, partition prune) + полная переигровка.
+
+## I-2-трактовка (MERGE / reprocess)
+
+- **MERGE** — точечный ACID-upsert по known identity (source, external_id), last-write-wins по
+  `_ingested_at` — это НЕ переписывание таблицы (аналог replay 002). Iceberg-снапшоты не expire
+  (time-travel сохраняет историю). Значения — только bind-параметры; source типизирован через CAST
+  (устойчиво к all-NULL колонкам). Spike на Trino 483 подтвердил MERGE INTO … USING (VALUES …).
+- **Reprocess** — bulk-перезапись партиции источника, но по ЯВНОМУ решению оператора (флаг
+  `--reprocess`); журнал append-only получает новые записи; raw не затрагивается.
+
+## Единый lock конвейера (FR-012, I-15)
+
+`${TMPDIR}/loftnav-pipeline.lock` — общий с ingest: transform не идёт параллельно ни с ingest, ни
+с другим transform (грубая сериализация — осознанный MVP-компромисс).
+
+## Рефакторинги переиспользования (FR-013, поведение 002 без изменений)
+
+- `src/loftnav/ident.py` — нейтральный санитайзер/квотер идентификаторов (реэкспорт из
+  ingest/inference для совместимости).
+- `src/loftnav/chunked_insert.py` — общий байт-бюджетный multi-row хелпер (estimate/prefix/chunk/
+  insert); используют bronze_writer, quarantine, silver_writer.
+- `runlog.last_status(conn, content_hash, stage)` — ОБЯЗАТЕЛЬНЫЙ stage-фильтр (у ingest и transform
+  один content_hash, но разные стадии); call-site ingest обновлён. Регрессия 002 зелёная.
+
+## Ограничения и осознанные риски
+
+- **Cross-source дедуп НЕ гарантируется** — один и тот же объект из двух источников = две строки
+  (разные `source`); fuzzy/ML-matching — кандидат рядом с 006.
+- **Полнота полей зависит от источника** — конфиг маппит только доступные колонки; непокрытые
+  silver-поля = NULL. Обязательны только price_rub/area_m2 (иначе строка в quarantine).
+- **Рост журнала (PERF-4, наследие 002)** распространяется на transform (full-scan по content_hash
+  и config-hash) — принято для демо-масштаба; партиционирование журнала — ревизия при росте.
+- **Merge-on-read read-amplification / компакция** Iceberg fv2 — вне MVP (кандидат: периодический
+  OPTIMIZE).
+- **PII в quarantine as-is** — как в 002 (локальная single-user платформа, I-1).
+- **Синтетический external_id** (источник без стабильного id) — best-effort хэш нормализованных
+  полей: правка текста → переиндексация строки (задокументированная деградация).
+
+## Отклонения от плана 003 (as-built, обоснование I-13)
+
+| Область | План | Факт | Причина |
+|---|---|---|---|
+| Демо-источники | конфиги под фикстуры 002 (apartments/flats/listings_flats) | отдельные демо-источники t_avito/t_cian/t_domclick | фикстуры 002 не содержат обязательных price+area (только apartments имеет area) — маппинг невозможен; источники 002 без конфига демонстрируют FR-010 (skip) |
+| id-хэш | `sha256(f"{source}:{external_id}")` (T7) | length-prefix `sha256(f"{len(source)}:{source}:{external_id}")` | наивная конкатенация коллизирует при ':' в external_id (аудит #15) — префикс длины делает инъективной |
+| Инкремент. статус | success/skipped → skip; failed/partial → reprocess (FR-007) | **partial тоже терминален** (skip) | MERGE идемпотентен, но re-run partial копил бы quarantine и ломал идемпотентность (0 партий на повторе); переобрабатывается только failed |
+| MERGE source | `USING (VALUES …)` | `USING (SELECT CAST(...) FROM (VALUES …))` | явный CAST — устойчивость к all-NULL колонкам (тип не выводится из NULL-литералов) |

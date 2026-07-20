@@ -1,0 +1,16 @@
+# Маппинг источника t_domclick → silver.apartments_clean (FR-002). Демо: price в млн.руб, area в м².
+[meta]
+external_id = "id"
+
+[fields.price_rub]
+input = "price_mln"
+cast = "decimal"
+unit_convert = { from = "mln_rub", to = "rub" }
+
+[fields.area_m2]
+input = "area"
+cast = "decimal"
+
+[fields.rooms]
+input = "rooms"
+cast = "bigint"

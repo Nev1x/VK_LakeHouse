@@ -79,13 +79,17 @@ def record_run(conn, rec: RunRecord) -> None:
     cur.fetchall()
 
 
-def last_status(conn, content_hash: str) -> str | None:
-    """Последний по времени статус прогона для данного content_hash (идемпотентность FR-010)."""
+def last_status(conn, content_hash: str, stage: str) -> str | None:
+    """Последний статус прогона для (content_hash, stage) — идемпотентность (FR-010/FR-007).
+
+    stage ОБЯЗАТЕЛЕН (FR-013): у ingest и transform один content_hash, но разные стадии —
+    без фильтра записи путаются.
+    """
     cur = conn.cursor()
     cur.execute(
-        f"SELECT status FROM {OPS_TABLE} WHERE content_hash = ? "
+        f"SELECT status FROM {OPS_TABLE} WHERE content_hash = ? AND stage = ? "
         "ORDER BY started_at DESC LIMIT 1",
-        [content_hash],
+        [content_hash, stage],
     )
     rows = cur.fetchall()
     return rows[0][0] if rows else None

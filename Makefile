@@ -1,12 +1,14 @@
 # LoftNavigator LakeHouse — управление стеком (фича 001).
 # macOS/BSD-совместимо: логика в POSIX-sh рецептах, без GNU-специфики make.
 .POSIX:
-.PHONY: help up down smoke ps logs deps gen-auth bootstrap ingest ingest-demo check-env check-docker
+.PHONY: help up down smoke ps logs deps gen-auth bootstrap ingest ingest-demo \
+        transform transform-demo check-env check-docker
 
 COMPOSE = docker compose
 VENV    = .venv
 PY      = $(VENV)/bin/python
 INGEST_DEMO_DIR = tests/fixtures/ingestion
+TRANSFORM_DEMO_DIR = tests/fixtures/transform
 
 help:
 	@echo "LoftNavigator LakeHouse — make-цели:"
@@ -15,6 +17,8 @@ help:
 	@echo "  make smoke         — round-trip smoke: Trino -> Iceberg -> MinIO"
 	@echo "  make ingest FILE=  — загрузить файл/папку в bronze (фича 002)"
 	@echo "  make ingest-demo   — загрузить демо-фикстуры tests/fixtures/ingestion/"
+	@echo "  make transform ARGS=... — bronze -> silver.apartments_clean (фича 003)"
+	@echo "  make transform-demo — ingest демо-источников + transform в silver"
 	@echo "  make ps / logs     — диагностика"
 
 check-docker:
@@ -59,6 +63,16 @@ ingest: check-env deps
 
 ingest-demo: check-env deps
 	@set -a; . ./.env; set +a; $(PY) -m loftnav.cli ingest $(INGEST_DEMO_DIR)
+
+# transform (фича 003): bronze -> silver. ARGS для флагов (--source X / --reprocess X)
+transform: check-env deps
+	@set -a; . ./.env; set +a; $(PY) -m loftnav.cli transform $(ARGS)
+
+# transform-demo: ingest демо-источников t_avito/t_cian/t_domclick, затем transform в silver
+transform-demo: check-env deps
+	@set -a; . ./.env; set +a; \
+	  $(PY) -m loftnav.cli ingest $(TRANSFORM_DEMO_DIR); \
+	  $(PY) -m loftnav.cli transform
 
 ps:
 	@$(COMPOSE) ps

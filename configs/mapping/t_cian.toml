@@ -1,0 +1,19 @@
+# Маппинг источника t_cian → silver.apartments_clean (FR-002). Демо: cost в руб, square в м².
+[meta]
+external_id = "obj_id"
+
+[fields.price_rub]
+input = "cost"
+cast = "decimal"
+
+[fields.area_m2]
+input = "square"
+cast = "decimal"
+
+[fields.rooms]
+input = "room_count"
+cast = "bigint"
+
+[fields.has_furniture]
+input = "furn"
+cast = "boolean"

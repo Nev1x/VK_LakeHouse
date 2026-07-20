@@ -49,7 +49,46 @@ class IngestConfig:
             read_chunk_rows=_int_env("LOFTNAV_READ_CHUNK_ROWS", 5000),
             insert_chunk_rows=_int_env("LOFTNAV_INSERT_CHUNK_ROWS", 1000),
             insert_chunk_bytes=_int_env("LOFTNAV_INSERT_CHUNK_BYTES", 700_000),
-            lock_path=Path(tempfile.gettempdir()) / "loftnav-ingest.lock",
+            lock_path=pipeline_lock_path(),
+        )
+
+
+def pipeline_lock_path() -> Path:
+    """ЕДИНЫЙ lock-файл конвейера: ingest и transform не идут параллельно (FR-012, I-15)."""
+    return Path(tempfile.gettempdir()) / "loftnav-pipeline.lock"
+
+
+# Sanity-диапазоны нормализации silver (FR-004). Обоснование дефолтов — реалии рынка квартир РФ:
+# цена > 0 (0/отриц. — ошибка источника); площадь 1..1000 м² (студия..особняк); комнаты 0..20
+# (0 = студия); этаж/этажность 1..200 (небоскрёбы); метро 0..240 мин. Переопределяемы через env.
+SANITY_DEFAULTS: dict[str, tuple[float, float]] = {
+    "price_rub": (0.0, 10_000_000_000.0),   # (эксклюзивный низ проверяется как > 0)
+    "area_m2": (1.0, 1000.0),
+    "rooms": (0.0, 20.0),
+    "floor": (1.0, 200.0),
+    "floors_total": (1.0, 200.0),
+    "metro_minutes": (0.0, 240.0),
+}
+
+
+@dataclass(frozen=True)
+class TransformConfig:
+    mapping_dir: Path
+    read_chunk_rows: int          # fetchmany bronze (T5)
+    merge_chunk_rows: int
+    merge_chunk_bytes: int        # бюджет длины текста MERGE (символы)
+    regex_value_cap: int          # cap длины значения до regex (ReDoS defense, T4)
+    lock_path: Path
+
+    @staticmethod
+    def from_env() -> TransformConfig:
+        return TransformConfig(
+            mapping_dir=Path(os.environ.get("LOFTNAV_MAPPING_DIR", "configs/mapping")),
+            read_chunk_rows=_int_env("LOFTNAV_TRANSFORM_READ_CHUNK_ROWS", 5000),
+            merge_chunk_rows=_int_env("LOFTNAV_MERGE_CHUNK_ROWS", 1000),
+            merge_chunk_bytes=_int_env("LOFTNAV_MERGE_CHUNK_BYTES", 700_000),
+            regex_value_cap=_int_env("LOFTNAV_REGEX_VALUE_CAP", 64 * 1024),
+            lock_path=pipeline_lock_path(),
         )
 
 

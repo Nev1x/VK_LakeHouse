@@ -1,6 +1,7 @@
-"""Quarantine отбракованных строк (FR-008, I-2: молча не дропаем). Общий для 002/003.
+"""Quarantine отбракованных строк (FR-008/I-2: молча не дропаем). Общий для 002/003.
 
-iceberg.quarantine.<layer>_<source>_rejects. Значения — bind-параметры; имена — санитизированы.
+iceberg.quarantine.<layer>_<source>_rejects. Значения — bind-параметры; имена — санитизированы;
+чанкование INSERT — общий байт-бюджетный хелпер chunked_insert (FR-013).
 """
 
 from __future__ import annotations
@@ -8,9 +9,12 @@ from __future__ import annotations
 import datetime as _dt
 from dataclasses import dataclass
 
-from loftnav.ingest.inference import quote_ident
+from loftnav import chunked_insert
+from loftnav.ident import quote_ident
 
 QUARANTINE_NS = "iceberg.quarantine"
+
+_COLUMNS = ["run_id", "source", "raw_record", "reason", "rejected_at", "layer"]
 
 
 @dataclass
@@ -45,41 +49,18 @@ def write_rejects(
     chunk_rows: int = 1000,
     chunk_bytes: int = 700_000,
 ) -> int:
-    """Пишет отбракованные строки в quarantine-таблицу слоя (byte-aware чанки — CRITICAL-2).
-
-    raw_record усечён до валидного JSON вызывающим, но может достигать ~лимита поля — режем INSERT
-    и по строкам, и по оценке длины текста запроса (trino инлайнит params)."""
+    """Пишет отбракованные строки в quarantine-таблицу (byte-aware чанки, chunked_insert)."""
     if not rejects:
         return 0
     table = rejects_table(layer, source)
     _ensure_table(conn, table)
     now = _dt.datetime.now(_dt.UTC).replace(tzinfo=None)
-    cur = conn.cursor()
+    rows = [[run_id, source, r.raw_record, r.reason, now, layer] for r in rejects]
     written = 0
-    for batch in _chunk_rejects(rejects, chunk_rows, chunk_bytes):
-        placeholders = ",".join(["(?,?,?,?,?,?)"] * len(batch))
-        params: list[object] = []
-        for r in batch:
-            params += [run_id, source, r.raw_record, r.reason, now, layer]
-        cur.execute(
-            f"INSERT INTO {table} (run_id, source, raw_record, reason, rejected_at, layer) "
-            f"VALUES {placeholders}",
-            params,
-        )
-        cur.fetchall()
+    base = chunked_insert.insert_prefix_len(table, _COLUMNS)
+    for batch in chunked_insert.iter_byte_chunks(
+        rows, chunk_rows=chunk_rows, chunk_bytes=chunk_bytes, base_len=base
+    ):
+        chunked_insert.insert_multi(conn, table, _COLUMNS, batch)
         written += len(batch)
     return written
-
-
-def _chunk_rejects(rejects: list[Reject], chunk_rows: int, chunk_bytes: int):
-    batch: list[Reject] = []
-    size = 0
-    for r in rejects:
-        est = 2 * (len(r.raw_record) + len(r.reason)) + 160  # инлайн + экранирование + служебные
-        if batch and (len(batch) >= chunk_rows or size + est > chunk_bytes):
-            yield batch
-            batch, size = [], 0
-        batch.append(r)
-        size += est
-    if batch:
-        yield batch

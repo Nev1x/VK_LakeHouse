@@ -261,7 +261,7 @@ def process_file(
             raise ValueError(f"файл превышает лимит {cfg.max_file_bytes} байт")
 
         content_hash = sha256_file(path)
-        prev = runlog.last_status(conn, content_hash)
+        prev = runlog.last_status(conn, content_hash, STAGE)
         # success ИЛИ skipped => файл уже успешно загружен ранее => снова skip (не задваиваем).
         if prev in (runlog.STATUS_SUCCESS, runlog.STATUS_SKIPPED):
             status = runlog.STATUS_SKIPPED

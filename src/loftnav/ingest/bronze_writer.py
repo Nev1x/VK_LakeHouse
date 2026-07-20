@@ -6,10 +6,21 @@
 
 from __future__ import annotations
 
-import datetime as _dt
-from collections.abc import Iterable
+from loftnav import chunked_insert
+from loftnav.chunked_insert import estimate_row_sql  # реэкспорт (call-site run.py 002)
+from loftnav.ident import quote_ident
 
-from loftnav.ingest.inference import quote_ident
+__all__ = [
+    "SERVICE_COLUMNS",
+    "SchemaConflict",
+    "bronze_table",
+    "delete_by_content_hash",
+    "ensure_table",
+    "estimate_row_sql",
+    "insert_batch",
+    "insert_prefix_len",
+    "resolve_column_type",
+]
 
 BRONZE_NS = "iceberg.bronze"
 
@@ -119,43 +130,10 @@ def delete_by_content_hash(conn, source: str, content_hash: str) -> None:
 
 
 def insert_prefix_len(source: str, columns: list[str]) -> int:
-    """Длина статического префикса INSERT (учитывается в бюджете длины запроса)."""
-    col_sql = ", ".join(quote_ident(c) for c in columns)
-    return len(f"INSERT INTO {bronze_table(source)} ({col_sql}) VALUES ")
-
-
-def estimate_row_sql(row: Iterable[object]) -> int:
-    """Оценка ДЛИНЫ ИНЛАЙНОВОГО литерала строки в тексте запроса (trino инлайнит params).
-
-    Консервативно (over-estimate): строки — с worst-case экранированием кавычек (×2) и обрамлением;
-    типизированные литералы (timestamp/date) — с запасом. CRITICAL-2: чанк режем по этой оценке.
-    """
-    total = 2  # ()
-    for v in row:
-        if v is None:
-            total += 4                         # NULL
-        elif isinstance(v, bool):
-            total += 5
-        elif isinstance(v, str):
-            total += 2 * len(v) + 3            # кавычки + worst-case экранирование
-        elif isinstance(v, (_dt.datetime, _dt.date)):
-            total += 40                        # TIMESTAMP '....' / DATE '....'
-        else:
-            total += len(str(v)) + 2
-        total += 1                             # запятая
-    return total
+    """Длина статического префикса INSERT bronze-таблицы (для бюджета длины запроса)."""
+    return chunked_insert.insert_prefix_len(bronze_table(source), columns)
 
 
 def insert_batch(conn, source: str, columns: list[str], batch: list[list]) -> None:
-    """Один multi-row параметризованный INSERT для переданного батча (значения — bind-параметры)."""
-    if not batch:
-        return
-    col_sql = ", ".join(quote_ident(c) for c in columns)
-    row_ph = "(" + ",".join(["?"] * len(columns)) + ")"
-    placeholders = ",".join([row_ph] * len(batch))
-    params: list[object] = []
-    for r in batch:
-        params.extend(r)
-    cur = conn.cursor()
-    cur.execute(f"INSERT INTO {bronze_table(source)} ({col_sql}) VALUES {placeholders}", params)
-    cur.fetchall()
+    """Один multi-row параметризованный INSERT ровно для переданного батча (общий хелпер FR-013)."""
+    chunked_insert.insert_multi(conn, bronze_table(source), columns, batch)

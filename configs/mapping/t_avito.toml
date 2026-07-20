@@ -1,0 +1,24 @@
+# Маппинг источника t_avito → silver.apartments_clean (FR-002). Демо: price в тыс.руб, area comma-м².
+[meta]
+external_id = "id"
+
+[fields.price_rub]
+input = "price"
+cast = "decimal"
+unit_convert = { from = "thousands_rub", to = "rub" }
+
+[fields.area_m2]
+input = "area"
+regex_replace = { pattern = ",", replacement = "." }
+cast = "decimal"
+
+[fields.rooms]
+input = "rooms"
+cast = "bigint"
+
+[fields.district]
+input = "district"
+
+[fields.has_renovation]
+input = "renov"
+enum_map = { "евро" = true, "черновая" = false }
