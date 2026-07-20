@@ -117,6 +117,27 @@ class GoldConfig:
         )
 
 
+@dataclass(frozen=True)
+class ExportConfig:
+    minio_endpoint_url: str
+    minio_access_key: str
+    minio_secret_key: str
+    datasets_bucket: str          # ml-datasets (egress-зона выгрузки, FR-004)
+    read_chunk_rows: int          # fetchmany из features (bounded, NFR-001)
+    lock_path: Path
+
+    @staticmethod
+    def from_env() -> ExportConfig:
+        return ExportConfig(
+            minio_endpoint_url=os.environ.get("MINIO_ENDPOINT_URL", "http://127.0.0.1:9000"),
+            minio_access_key=_require("MINIO_ROOT_USER"),
+            minio_secret_key=_require("MINIO_ROOT_PASSWORD"),
+            datasets_bucket=os.environ.get("LOFTNAV_DATASETS_BUCKET", "ml-datasets"),
+            read_chunk_rows=_int_env("LOFTNAV_EXPORT_READ_CHUNK_ROWS", 5000),
+            lock_path=pipeline_lock_path(),
+        )
+
+
 def _require(name: str) -> str:
     value = os.environ.get(name)
     if not value:

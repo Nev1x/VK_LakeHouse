@@ -9,7 +9,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from loftnav.config import GoldConfig, IngestConfig, TransformConfig
+from loftnav.config import ExportConfig, GoldConfig, IngestConfig, TransformConfig
+from loftnav.export.run import run_export
 from loftnav.gold.run import run_build_gold
 from loftnav.ingest.run import ingest_paths
 from loftnav.transform.run import run_transform
@@ -43,6 +44,15 @@ def _cmd_build_gold(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_export_dataset(args: argparse.Namespace) -> int:
+    ecfg = ExportConfig.from_env()
+    try:
+        return run_export(args.format, ecfg)
+    except RuntimeError as exc:  # lock занят — читаемая ошибка (I-8)
+        print(f"loftnav export-dataset: {exc}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="loftnav", description="LoftNavigator LakeHouse CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -64,6 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
     build_gold = sub.add_parser("build-gold", help="силвер → gold-витрины + apartments_features")
     build_gold.add_argument("--only", default=None, help="пересчитать только одну витрину/таблицу")
     build_gold.set_defaults(func=_cmd_build_gold)
+
+    export = sub.add_parser("export-dataset", help="features → версия датасета в ml-datasets")
+    export.add_argument(
+        "--format", default="both", choices=("parquet", "jsonl", "both"), help="формат(ы) выгрузки"
+    )
+    export.set_defaults(func=_cmd_export_dataset)
     return parser
 
 

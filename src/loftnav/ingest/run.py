@@ -344,7 +344,7 @@ def ingest_paths(paths: list[Path], source_override: str | None, cfg: IngestConf
         return EXIT_OK
 
     with process_lock(cfg):
-        store = S3Store(cfg)
+        store = S3Store(cfg, cfg.raw_bucket)
         conn = get_connection()
         try:
             _ensure_schemas(conn)

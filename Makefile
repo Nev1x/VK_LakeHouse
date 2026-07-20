@@ -2,7 +2,8 @@
 # macOS/BSD-совместимо: логика в POSIX-sh рецептах, без GNU-специфики make.
 .POSIX:
 .PHONY: help up down smoke ps logs deps gen-auth bootstrap ingest ingest-demo \
-        transform transform-demo build-gold build-gold-demo grafana-smoke check-env check-docker
+        transform transform-demo build-gold build-gold-demo grafana-smoke \
+        export-dataset export-dataset-demo check-env check-docker
 
 COMPOSE = docker compose
 VENV    = .venv
@@ -90,6 +91,18 @@ build-gold-demo: check-env deps
 	  $(PY) -m loftnav.cli ingest $(TRANSFORM_DEMO_DIR); \
 	  $(PY) -m loftnav.cli transform; \
 	  $(PY) -m loftnav.cli build-gold
+
+# export-dataset (фича 006): gold.apartments_features -> версия датасета в ml-datasets. ARGS для --format
+export-dataset: check-env deps
+	@set -a; . ./.env; set +a; $(PY) -m loftnav.cli export-dataset $(ARGS)
+
+# export-dataset-demo: полная цепочка build-gold-demo -> export-dataset
+export-dataset-demo: check-env deps
+	@set -a; . ./.env; set +a; \
+	  $(PY) -m loftnav.cli ingest $(TRANSFORM_DEMO_DIR); \
+	  $(PY) -m loftnav.cli transform; \
+	  $(PY) -m loftnav.cli build-gold; \
+	  $(PY) -m loftnav.cli export-dataset
 
 ps:
 	@$(COMPOSE) ps

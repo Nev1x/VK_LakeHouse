@@ -8,6 +8,8 @@ dependencies = [
     "pandas==3.0.3",
     "openpyxl==3.1.5",
     "boto3==1.43.51",
+    # pyarrow — потоковая запись parquet (ParquetWriter) в ml-dataset-export (006); wheel py3.12
+    "pyarrow==25.0.0",
 ]
 
 [project.optional-dependencies]
