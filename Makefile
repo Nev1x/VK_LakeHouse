@@ -2,7 +2,7 @@
 # macOS/BSD-совместимо: логика в POSIX-sh рецептах, без GNU-специфики make.
 .POSIX:
 .PHONY: help up down smoke ps logs deps gen-auth bootstrap ingest ingest-demo \
-        transform transform-demo check-env check-docker
+        transform transform-demo build-gold build-gold-demo check-env check-docker
 
 COMPOSE = docker compose
 VENV    = .venv
@@ -19,6 +19,8 @@ help:
 	@echo "  make ingest-demo   — загрузить демо-фикстуры tests/fixtures/ingestion/"
 	@echo "  make transform ARGS=... — bronze -> silver.apartments_clean (фича 003)"
 	@echo "  make transform-demo — ingest демо-источников + transform в silver"
+	@echo "  make build-gold ARGS=... — silver -> gold-витрины + features (фича 004)"
+	@echo "  make build-gold-demo — transform-demo + build-gold (цепочка ingest->gold)"
 	@echo "  make ps / logs     — диагностика"
 
 check-docker:
@@ -73,6 +75,17 @@ transform-demo: check-env deps
 	@set -a; . ./.env; set +a; \
 	  $(PY) -m loftnav.cli ingest $(TRANSFORM_DEMO_DIR); \
 	  $(PY) -m loftnav.cli transform
+
+# build-gold (фича 004): silver -> gold-витрины + features. ARGS для флагов (--only <mart>)
+build-gold: check-env deps
+	@set -a; . ./.env; set +a; $(PY) -m loftnav.cli build-gold $(ARGS)
+
+# build-gold-demo: полная цепочка transform-demo -> build-gold (данные для QA 005/006)
+build-gold-demo: check-env deps
+	@set -a; . ./.env; set +a; \
+	  $(PY) -m loftnav.cli ingest $(TRANSFORM_DEMO_DIR); \
+	  $(PY) -m loftnav.cli transform; \
+	  $(PY) -m loftnav.cli build-gold
 
 ps:
 	@$(COMPOSE) ps

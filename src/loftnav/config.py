@@ -104,6 +104,19 @@ class TransformConfig:
         )
 
 
+@dataclass(frozen=True)
+class GoldConfig:
+    small_sample: int             # порог is_small_sample витрины стиля/ремонта (FR-003)
+    lock_path: Path
+
+    @staticmethod
+    def from_env() -> GoldConfig:
+        return GoldConfig(
+            small_sample=_int_env("LOFTNAV_GOLD_SMALL_SAMPLE", 3),
+            lock_path=pipeline_lock_path(),
+        )
+
+
 def _require(name: str) -> str:
     value = os.environ.get(name)
     if not value:

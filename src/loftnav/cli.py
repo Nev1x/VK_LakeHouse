@@ -9,7 +9,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from loftnav.config import IngestConfig, TransformConfig
+from loftnav.config import GoldConfig, IngestConfig, TransformConfig
+from loftnav.gold.run import run_build_gold
 from loftnav.ingest.run import ingest_paths
 from loftnav.transform.run import run_transform
 
@@ -33,6 +34,15 @@ def _cmd_transform(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_build_gold(args: argparse.Namespace) -> int:
+    gcfg = GoldConfig.from_env()
+    try:
+        return run_build_gold(args.only, gcfg)
+    except RuntimeError as exc:  # lock занят — читаемая ошибка (I-8)
+        print(f"loftnav build-gold: {exc}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="loftnav", description="LoftNavigator LakeHouse CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -50,6 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--reprocess", default=None, help="переиграть источник (DELETE партиции + полный пересчёт)"
     )
     transform.set_defaults(func=_cmd_transform)
+
+    build_gold = sub.add_parser("build-gold", help="силвер → gold-витрины + apartments_features")
+    build_gold.add_argument("--only", default=None, help="пересчитать только одну витрину/таблицу")
+    build_gold.set_defaults(func=_cmd_build_gold)
     return parser
 
 

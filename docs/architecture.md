@@ -484,3 +484,109 @@ enum_map = { "евро" = true, "черновая" = false }        # СТРОГ
 | id-хэш | `sha256(f"{source}:{external_id}")` (T7) | length-prefix `sha256(f"{len(source)}:{source}:{external_id}")` | наивная конкатенация коллизирует при ':' в external_id (аудит #15) — префикс длины делает инъективной |
 | Инкремент. статус | success/skipped → skip; failed/partial → reprocess (FR-007) | **partial тоже терминален** (skip) | MERGE идемпотентен, но re-run partial копил бы quarantine и ломал идемпотентность (0 партий на повторе); переобрабатывается только failed |
 | MERGE source | `USING (VALUES …)` | `USING (SELECT CAST(...) FROM (VALUES …))` | явный CAST — устойчивость к all-NULL колонкам (тип не выводится из NULL-литералов) |
+
+---
+
+# Gold (фича 004 — витрины и feature-таблица, as-built)
+
+CLI `loftnav build-gold`: из `silver.apartments_clean` строятся три материализованные витрины-агрегата
+(вход дашбордов 005) и row-level feature-таблица `apartments_features` (вход 006). Полный
+детерминированный пересчёт из silver, атомарная замена, журнал `stage='build_gold'`. Схемы gold —
+FROZEN (I-6): их захардкодят 005 и 006.
+
+## CLI / Make
+
+| Команда | Действие |
+|---|---|
+| `make build-gold` / `loftnav build-gold` | пересчитать все витрины + features |
+| `loftnav build-gold --only <mart>` | одна витрина/таблица |
+| `make build-gold-demo` | ingest демо → transform → build-gold (данные для QA 005/006) |
+
+Exit codes: `0` — все success; `1` — все failed; `2` — частично.
+
+## Витрины (frozen, additive-only)
+
+**`iceberg.gold.mart_price_area_by_district`** — `district` (COALESCE→'unknown'), `listing_count`,
+`avg_price_rub`, `median_price_rub`, `min/max_price_rub`, `avg_price_per_m2`, `avg_area_m2`,
+`_computed_at`, `_gold_run_id`. Медиана — `approx_percentile(CAST(price_rub AS DOUBLE), 0.5)` с
+явным `CAST(... AS DECIMAL(12,2))`. `price_per_m2` через `NULLIF(area_m2, 0)`.
+
+**`iceberg.gold.mart_style_renovation_furniture`** — `style_norm`/`renovation_style_norm`
+(`lower(trim())`, COALESCE→'none'), `has_renovation`, `has_furniture`, `listing_count`,
+`avg_price_rub`, `median_price_rub`, `avg_area_m2`, `is_small_sample` BOOLEAN
+(`listing_count < LOFTNAV_GOLD_SMALL_SAMPLE`, default 3), `_computed_at`, `_gold_run_id`.
+
+**`iceberg.gold.mart_listing_dynamics`** — `load_date` DATE (`DATE(_ingested_at)` из silver, НЕ из
+pipeline_runs — I-4), `listings_added`, `listings_added_cumulative` (window sum). Date-spine
+(`sequence(min,max,INTERVAL '1' DAY)`) убирает дыры в ряду (US-3).
+
+Каждая агрегатная колонка — ЯВНЫЙ `CAST(... AS DECIMAL(p,s))` (не вывод CTAS). Определения — код
+(`src/loftnav/gold/marts.py`), tuple-driven, явный список колонок (`SELECT *` структурно невозможен —
+additive-колонка silver не просочится в frozen-схему gold).
+
+## `apartments_features` (frozen, вход 006; fv2)
+
+`id/source/external_id` VARCHAR; `price_rub` DECIMAL(12,2), `area_m2` DECIMAL(8,2), `price_per_m2`
+DECIMAL(12,2) nullable (NULL при area=0 — NULLIF); `rooms/floor/floors_total/metro_minutes` BIGINT;
+`floor_ratio` DOUBLE nullable (NULL при floors_total NULL/0); `district/style/renovation_style`
+VARCHAR; `has_renovation/has_furniture` BOOLEAN; `listed_at` TIMESTAMP; `photo_urls` VARCHAR
+(JSON as-is, passthrough для CV-фич 006 — gold не парсит); служебные `_silver_snapshot_id`,
+`_source_transform_run_id`, `_gold_run_id` VARCHAR, `_computed_at` TIMESTAMP.
+
+**`is_loft` BOOLEAN — ВСЕГДА NULL** (target-заготовка). Эвристика `style ILIKE '%loft%'` ЗАПРЕЩЕНА
+как лже-таргет/утечка (I-11): разметка «лофт/не-лофт» — вне платформы (устав/006). Decision record:
+реальный `is_loft` появится при разметке в 006; до тех пор колонка резервирует контракт схемы.
+
+## Материализация (spike-решение)
+
+**CREATE OR REPLACE TABLE `<mart>` WITH (format_version=2) AS SELECT `<явные колонки>` FROM
+silver FOR VERSION AS OF `<snapshot_id>`.** Spike на Trino 483 подтвердил: CREATE OR REPLACE на
+JDBC-каталоге АТОМАРЕН — таблица существует непрерывно (Iceberg заменяет метаданные одним коммитом),
+старый snapshot остаётся в истории (time-travel в пределах генерации). Читатель дашборда никогда не
+видит полу-пересчитанную витрину и не получает «table not found» (в отличие от rename-swap, у
+которого есть sub-секундное окно между двумя RENAME). `FOR VERSION AS OF <snapshot>` пинует чтение
+silver на снапшот, зафиксированный на старте build — детерминизм (NFR-004).
+
+## Журнал (FR-008)
+
+Одна запись `stage='build_gold'` на витрину: `target_table`=имя витрины,
+`content_hash`=**snapshot_id silver** (семантика переопределена — воспроизводимая привязка «на каком
+состоянии silver построено», без хэша миллионов строк; из
+`iceberg.silver."apartments_clean$snapshots"` ORDER BY committed_at DESC LIMIT 1),
+`rows_ok`=строк на выходе, `schema_json`={gold_columns_version}. `$snapshots`-имя строится ОТДЕЛЬНОЙ
+функцией (`marts.snapshots_relation`), НЕ через ident (`$` отклоняется quote_ident) — ident.py не
+трогается.
+
+## I-2-трактовка (полный пересчёт)
+
+Все витрины и features — полный rebuild из silver каждый прогон (агрегаты — функция всей выборки;
+инкрементальная медиана некорректна без хранения распределения). Это штатный режим ПРОИЗВОДНОГО
+слоя, не «переписывание источника без решения владельца»: gold детерминированно вычислим из silver,
+Iceberg-снапшоты витрин не expire в пределах генерации. Аналог reprocess 003. Откат (SHOULD-3):
+`build-gold` из предыдущей ревизии silver/кода воспроизводит витрины; time-travel витрины —
+`FOR VERSION AS OF` до DROP старого снапшота (кросс-прогонная история не гарантируется — SHOULD-1).
+`fv2` = format_version=2 (текущий стандарт Iceberg, не «предыдущая версия контракта» — SHOULD-2).
+
+## Конкурентность, cleanup, run_id
+
+Общий pipeline-lock с ingest/transform (`loftnav-pipeline.lock`, FR-009). `run_id` (uuid4.hex)
+валидируется `^[a-f0-9]{32}$` перед использованием как значения. Осиротевшие временные таблицы
+`<mart>__build_`/`__old_` вычищаются `SHOW TABLES FROM iceberg.gold` + Python `startswith` (НЕ SQL
+LIKE — там `_` wildcard); при CREATE OR REPLACE временных таблиц не образуется, чистка — защита от
+легаси/крашей.
+
+## Ограничения и риски
+
+- **is_loft always NULL** — documented gap лофт-маркеров; координация с 006 при разметке.
+- **Cross-source дубли инфлируют count** (наследие 003: cross-source дедуп не гарантируется) — count
+  витрин может завышаться; документировано.
+- **approx-медиана** — приближённая (approx_percentile), детерминирована на фиксированном snapshot
+  (spike: стабильна ×5); осознанная потеря точности для дашборда. Точный перцентиль — при необходимости.
+- **Full-scan агрегатов/features** (наследие PERF-4) — принято для демо-масштаба; features на
+  инкрементальный MERGE — кандидат ревизии при росте.
+
+## Отклонения от плана 004 (as-built, обоснование I-13)
+
+| Область | План | Факт | Причина |
+|---|---|---|---|
+| Материализация | rename-swap (build→rename old→rename build→drop old) как default; CREATE OR REPLACE если spike подтвердит | **CREATE OR REPLACE** | spike подтвердил атомарность на Trino 483; строго лучше rename-swap (нет not-found окна для читателя, FR-005/US-5); time-travel сохраняется. Временных `__build_`/`__old_` таблиц нет → cleanup по префиксу оставлен как защита от легаси/крашей; run_id всё равно валидируется regex |
