@@ -46,3 +46,6 @@
 | 2026-07-20T07:11:48Z | agent:kulibin:done | фикс-цикл: тест плагина на надёжном сигнале (агрегатный /api/plugins enabled=true + health OK, не квирк /settings); browser-QA documented gap в architecture.md; 114 passed |
 | 2026-07-20T07:11:49Z | confidence:stage-3-dev | level=green reason=фикс верифицирован: grafana-тесты 16 passed на надёжном сигнале, grafana-smoke 4 passed, 114 total, ruff clean, diff только tests+architecture; units 4/4 |
 | 2026-07-20T07:11:49Z | stage-3-dev:done | - |
+| 2026-07-20T07:12:03Z | stage-4-quality:start | checkpoint=38e94eb643e10a6112a631df81e6bea49df32505 |
+| 2026-07-20T07:12:07Z | agent:qa-director:start | проход 2: верификация фикса тест-гэпа |
+| 2026-07-20T07:13:15Z | agent:qa-director:done | проход 2: фикс верифицирован лично (16 grafana-тестов, health OK), матрица 26 DONE/1 PARTIAL (browser-gap), CRITICAL 0, вердикт PASS |

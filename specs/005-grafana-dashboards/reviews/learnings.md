@@ -21,3 +21,10 @@
   health OK; тест не должен полагаться на квирк-эндпоинт (ни ложной гарантии, ни ложного FAIL).
 - **Deviations:** browser-QA (semiglazka) BLOCKED — Playwright MCP не подключён в runtime;
   documented gap (принцип 4: честный gap-отчёт, не симуляция), покрытие через API/JSON.
+
+## stage-4
+- **Learnings:** browser-QA capability не гарантирована в runtime — покрытие UI-фич нужно
+  дублировать API/JSON-уровнем (health + ds/query рендер), чтобы фича верифицировалась даже без
+  браузера; честный gap-отчёт лучше симуляции (принцип 4 адаптации).
+- **Deviations:** SC-6 browser-часть PARTIAL (среда без Playwright); проход 1 WARNING (тест
+  плагина) → fix (retry 1).
