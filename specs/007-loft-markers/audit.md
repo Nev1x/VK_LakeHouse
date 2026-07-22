@@ -27,3 +27,7 @@
 | 2026-07-22T15:14:47Z | stage-4-quality:start | checkpoint=769edbc9c1f0faacf9e7cbf38747b2d55d9fd906 |
 | 2026-07-22T15:14:51Z | agent:qa-verifier:start | адверсарная проверка 007 + багфикса медианы |
 | 2026-07-22T15:27:08Z | agent:qa-verifier:done | PASS проход 1: CRIT 0 WARN 0 INFO 1; ALTER только из _SCHEMA (инъекция не пролезла), sanity-границы инклюзивны, медиана x5 + ручная сверка чёт/нечёт, v035 immutable по sha, 144 passed x2 |
+| 2026-07-22T15:27:09Z | quality-head | 8113d9fc6f6785235f6cea97dd16f87b77fc0735 |
+| 2026-07-22T15:27:18Z | quality-verdict | PASS — matrix 13/13 DONE + багфикс медианы; pytest 144 passed целиком x2 + ruff clean + smoke 4 passed; адверсарно CRIT 0 WARN 0: ALTER из _SCHEMA, sanity-границы, медиана-детерминизм x5 с ручной сверкой, immutable v035 по sha; retry 0 |
+| 2026-07-22T15:27:23Z | confidence:stage-4-quality | level=green reason=вердикт PASS; сигналы прогнаны лично (pytest 144/ruff/determinism/SELECT маркеров) |
+| 2026-07-22T15:27:23Z | stage-4-quality:done | - |
