@@ -41,12 +41,20 @@ def test_district_mart_columns_and_median() -> None:
         "min_price_rub", "max_price_rub", "avg_price_per_m2", "avg_area_m2",
         "_computed_at", "_gold_run_id",
     )
-    # медиана — approx_percentile(CAST DOUBLE,0.5) с явным CAST в DECIMAL
-    assert "approx_percentile(CAST(price_rub AS DOUBLE), 0.5)" in m.select_sql
+    # медиана — ТОЧНАЯ (array_agg+ORDER BY), детерминизм NFR-004; НЕ approx_percentile
+    assert "array_agg(CAST(price_rub AS DOUBLE) ORDER BY price_rub)" in m.select_sql
+    assert "FILTER (WHERE price_rub IS NOT NULL)" in m.select_sql   # NULL-цены игнорируются
+    assert "approx_percentile" not in m.select_sql
     assert "AS DECIMAL(12,2))" in m.select_sql
     # деление на ноль защищено NULLIF
     assert "NULLIF(area_m2, 0)" in m.select_sql
     assert m.params == [_RID]
+
+
+@pytest.mark.parametrize("mart", _all_marts(), ids=lambda m: m.name)
+def test_no_approx_percentile_regression(mart) -> None:
+    """Guard (root cause 2026-07-22): недетерминированный approx_percentile запрещён в витринах."""
+    assert "approx_percentile" not in mart.select_sql
 
 
 def test_style_mart_small_sample_param_order() -> None:

@@ -35,6 +35,10 @@ def features_sql(run_id: str, snapshot: int | None) -> MartSQL:
         ("has_furniture", "has_furniture"),
         ("listed_at", "listed_at"),
         ("photo_urls", "photo_urls"),
+        # лофт-маркеры 007 (passthrough из silver) — СТРОГО перед is_loft/сервисным хвостом
+        ("ceiling_height_m", "ceiling_height_m"),
+        ("wall_material", "wall_material"),
+        ("year_built", "year_built"),
         # target-заготовка: константа NULL, НИКАКИХ эвристик по style (лже-таргет запрещён)
         ("is_loft", "CAST(NULL AS BOOLEAN)"),
         ("_silver_snapshot_id", "CAST(? AS VARCHAR)"),

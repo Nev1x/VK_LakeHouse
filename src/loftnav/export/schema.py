@@ -19,7 +19,9 @@ FEATURES_COLUMNS: tuple[str, ...] = (
     "rooms", "floor", "floors_total", "metro_minutes", "floor_ratio",
     "district", "style", "renovation_style",
     "has_renovation", "has_furniture",
-    "listed_at", "photo_urls", "is_loft",
+    "listed_at", "photo_urls",
+    "ceiling_height_m", "wall_material", "year_built",   # лофт-маркеры 007 (перед is_loft)
+    "is_loft",
     "_silver_snapshot_id", "_source_transform_run_id", "_gold_run_id", "_computed_at",
 )
 

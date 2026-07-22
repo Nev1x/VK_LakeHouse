@@ -1,7 +1,8 @@
 """Определения gold-витрин как код (FR-002/FR-003): tuple-driven, ЯВНЫЕ колонки (НЕ SELECT *).
 
-Витрины frozen (I-6): набор курируется, additive-only. Медиана — approx_percentile(CAST DOUBLE,0.5)
-с явным CAST обратно в DECIMAL. Каждая агрегатная колонка — явный CAST(p,s), не вывод CTAS.
+Витрины frozen (I-6): набор курируется, additive-only. Медиана — ТОЧНАЯ (array_agg+ORDER BY,
+детерминизм NFR-004; approx_percentile недетерминирован на реальных данных). Каждая агрегатная
+колонка — явный CAST(p,s), не вывод CTAS.
 Значения (run_id, порог) — bind-параметры; идентификаторы-алиасы — ident.quote_ident.
 """
 
@@ -16,7 +17,7 @@ SILVER = "iceberg.silver.apartments_clean"
 _SILVER_SCHEMA = "iceberg.silver"
 _SILVER_TABLE = "apartments_clean"
 GOLD_NS = "iceberg.gold"
-GOLD_COLUMNS_VERSION = 1
+GOLD_COLUMNS_VERSION = 2  # 007: features += ceiling_height_m/wall_material/year_built (additive)
 
 
 def snapshots_relation(schema: str, table: str) -> str:
@@ -55,13 +56,26 @@ def _select(cols: list[tuple[str, str]], from_group: str) -> str:
     return f"SELECT {body} {from_group}"
 
 
+def _exact_median(col: str) -> str:
+    """ТОЧНАЯ детерминированная медиана `col` → DECIMAL(12,2), одно выражение (fallback 004 T3).
+
+    `array_agg(... ORDER BY ...)` даёт отсортированный массив; медиана = среднее двух центральных
+    элементов (нечётная длина → оба индекса совпадают = центральный элемент). NULL-цены игнорируются
+    (FILTER); пустая/вся-NULL группа → NULL. Воспроизводимо на фиксированном snapshot (NFR-004),
+    в отличие от `approx_percentile` — его недетерминизм доказан на реальных данных владельца
+    (2026-07-22: 5 разных значений на 5 идентичных прогонах по группе)."""
+    arr = f"array_agg(CAST({col} AS DOUBLE) ORDER BY {col}) FILTER (WHERE {col} IS NOT NULL)"
+    lo = f"element_at({arr}, (cardinality({arr}) + 1) / 2)"
+    hi = f"element_at({arr}, (cardinality({arr}) + 2) / 2)"
+    return f"CAST(({lo} + {hi}) / 2e0 AS DECIMAL(12,2))"
+
+
 def mart_price_area_by_district(run_id: str, small_sample: int, snapshot: int | None) -> MartSQL:
     cols = [
         ("district", "COALESCE(district, 'unknown')"),
         ("listing_count", "CAST(count(*) AS BIGINT)"),
         ("avg_price_rub", "CAST(avg(price_rub) AS DECIMAL(12,2))"),
-        ("median_price_rub",
-         "CAST(approx_percentile(CAST(price_rub AS DOUBLE), 0.5) AS DECIMAL(12,2))"),
+        ("median_price_rub", _exact_median("price_rub")),
         ("min_price_rub", "CAST(min(price_rub) AS DECIMAL(12,2))"),
         ("max_price_rub", "CAST(max(price_rub) AS DECIMAL(12,2))"),
         ("avg_price_per_m2", "CAST(avg(price_rub / NULLIF(area_m2, 0)) AS DECIMAL(12,2))"),
@@ -88,8 +102,7 @@ def mart_style_renovation_furniture(
         ("has_furniture", "has_furniture"),
         ("listing_count", "CAST(count(*) AS BIGINT)"),
         ("avg_price_rub", "CAST(avg(price_rub) AS DECIMAL(12,2))"),
-        ("median_price_rub",
-         "CAST(approx_percentile(CAST(price_rub AS DOUBLE), 0.5) AS DECIMAL(12,2))"),
+        ("median_price_rub", _exact_median("price_rub")),
         ("avg_area_m2", "CAST(avg(area_m2) AS DECIMAL(8,2))"),
         ("is_small_sample", "count(*) < ?"),
         ("_computed_at", "current_timestamp"),

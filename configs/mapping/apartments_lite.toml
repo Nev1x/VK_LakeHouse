@@ -1,0 +1,51 @@
+# Маппинг источника apartments_lite (JSON, урезанная схема 13 колонок) → silver.
+# Демонстрация: другой источник с ДРУГИМ набором полей — маппится тем же механизмом, без кода.
+
+[meta]
+external_id = "id"
+
+[fields.price_rub]
+input = "price_rub"
+cast = "decimal"
+
+[fields.area_m2]
+input = "area_m2"
+cast = "decimal"
+
+[fields.rooms]
+input = "rooms"
+cast = "bigint"
+
+[fields.floor]
+input = "floor"
+cast = "bigint"
+
+[fields.floors_total]
+input = "total_floors"
+cast = "bigint"
+
+[fields.metro_minutes]
+input = "metro_distance_min"
+cast = "bigint"
+
+[fields.district]
+input = "district"
+
+[fields.style]
+input = "house_type"
+
+[fields.renovation_style]
+input = "repair"
+
+[fields.has_renovation]
+input = "repair"
+enum_map = { "Евроремонт" = true, "Дизайнерский" = true, "Косметический" = true, "Без ремонта" = false, "Требует капремонта" = false }
+
+# Лофт-маркеры (фича 007): у lite нет wall_material в схеме → колонка остаётся NULL в silver.
+[fields.ceiling_height_m]
+input = "ceiling_height_m"
+cast = "decimal"
+
+[fields.year_built]
+input = "year_built"
+cast = "bigint"

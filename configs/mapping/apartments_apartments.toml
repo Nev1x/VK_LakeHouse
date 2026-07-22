@@ -1,0 +1,67 @@
+# Маппинг источника apartments → silver.apartments_clean.
+# Реальный демо-набор владельца: 3000 квартир, 30 колонок (CSV/JSON/XLSX — одинаковая схема).
+# Цена уже в рублях, площадь в м² — unit_convert не нужен.
+
+[meta]
+external_id = "id"
+
+[fields.price_rub]
+input = "price_rub"
+cast = "decimal"
+
+[fields.area_m2]
+input = "area_m2"
+cast = "decimal"
+
+[fields.rooms]
+input = "rooms"
+cast = "bigint"
+
+[fields.floor]
+input = "floor"
+cast = "bigint"
+
+[fields.floors_total]
+input = "total_floors"
+cast = "bigint"
+
+[fields.metro_minutes]
+input = "metro_distance_min"
+cast = "bigint"
+
+[fields.district]
+input = "district"
+
+[fields.address]
+input = "street"
+
+# house_type (Кирпичный/Панельный/Монолитный/…) — ближайший доступный аналог «стиля» дома.
+[fields.style]
+input = "house_type"
+
+[fields.renovation_style]
+input = "repair"
+
+[fields.has_renovation]
+input = "repair"
+enum_map = { "Евроремонт" = true, "Дизайнерский" = true, "Косметический" = true, "Без ремонта" = false, "Требует капремонта" = false }
+
+[fields.has_furniture]
+input = "has_furniture"
+enum_map = { "Да" = true, "Нет" = false }
+
+[fields.listed_at]
+input = "listing_date"
+cast = "timestamp"
+
+# Лофт-маркеры (фича 007): доезжают до silver additive-колонками (закрыт documented gap 004).
+[fields.ceiling_height_m]
+input = "ceiling_height_m"
+cast = "decimal"
+
+[fields.wall_material]
+input = "wall_material"
+
+[fields.year_built]
+input = "year_built"
+cast = "bigint"
