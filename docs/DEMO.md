@@ -15,8 +15,10 @@
 
 ## 2. Приём «кривого» файла вживую (3 мин)
 ```bash
-printf 'id;price;area;rooms;district;renov\nD1;6500;52,0;2;Пресненский;евро\nD2;8100;71,5;3;Якиманка;черновая\nD3;0;40,0;1;Басманный;евро\n' > /tmp/demo.csv
+RUN=$(date +%s)   # уникализируем содержимое per-run: ingest идемпотентен по sha256, без этого повтор показа = skip
+printf 'id;price;area;rooms;district;renov\nD1-%s;6500;52,0;2;Пресненский;евро\nD2-%s;8100;71,5;3;Якиманка;черновая\nD3-%s;0;40,0;1;Басманный;евро\n' "$RUN" "$RUN" "$RUN" > /tmp/demo.csv
 python -m loftnav.cli ingest --source t_avito /tmp/demo.csv      # ok=3 — сырьё не судим
+python -m loftnav.cli ingest --source t_avito /tmp/demo.csv      # [skipped] ok=0 — идемпотентность: то же сырьё не задваивается (это фича)
 python -m loftnav.cli transform --source t_avito                  # partial ok=2 quarantined=1
 ```
 Карантин с причиной (не потеряли и не упали):
@@ -33,7 +35,7 @@ python -m loftnav.cli build-gold                                  # ~9 сек
 ## 3. Grafana — http://127.0.0.1:3000 (4 мин; креды в .env)
 «Операции платформы»: статус прогонов по стадиям · принято/отбраковано (видна наша 1 строка) ·
 свежесть слоёв · таблица failed с текстом ошибок · реестр quarantine.
-«Квартиры»: цены/площади по 12 районам · срезы стиль×ремонт×мебель (пометка малых выборок) ·
+«Квартиры»: цены/площади по районам (12 реальных + 2 демо после нашей вставки) · срезы стиль×ремонт×мебель (пометка малых выборок) ·
 динамика загрузок. Медиана детерминированная (точная — багфикс, вскрытый реальными данными).
 
 ## 4. «pgAdmin»: что внутри PostgreSQL (2 мин)
@@ -66,6 +68,20 @@ print(df[["district","price_rub","area_m2","ceiling_height_m","wall_material","y
 Обычный pandas, платформа не нужна. Лофт-маркеры (потолки/стены/год) — признаки для модели;
 is_loft — заготовка под разметку; версии immutable — эксперименты воспроизводимы.
 Закрытие: «от кривого CSV до ML-датасета — четыре команды; наблюдаемо, без потерь, версионировано».
+
+## 7. После демо — вернуть эталон (1 мин)
+Демо-строки одноразовые: убираем их из silver и чистим карантин источника, платформа возвращается
+в эталон (silver 6050, 12 районов). Сырьё `bronze.t_avito` НЕ трогаем — raw immutable.
+```bash
+python -c "from loftnav.trino_client import get_connection; c=get_connection().cursor(); \
+c.execute(\"DELETE FROM iceberg.silver.apartments_clean WHERE source='t_avito'\"); c.fetchall(); \
+c.execute('DROP TABLE IF EXISTS iceberg.quarantine.silver_t_avito_rejects'); c.fetchall()"
+python -m loftnav.cli build-gold                                  # витрины пересчитаны из silver
+python -c "from loftnav.trino_client import get_connection; c=get_connection().cursor(); \
+c.execute('SELECT count(*) FROM iceberg.silver.apartments_clean'); print('silver:', c.fetchone()[0]); \
+c.execute('SELECT count(*) FROM iceberg.gold.mart_price_area_by_district'); print('районов:', c.fetchone()[0])"
+```
+Ожидаем `silver: 6050` и `районов: 12` — эталон восстановлен.
 
 ## Если что-то пошло не так
 - make up падает на pull → корп-VPN; стек уже поднят, up не нужен (или `docker compose up -d --wait`).
