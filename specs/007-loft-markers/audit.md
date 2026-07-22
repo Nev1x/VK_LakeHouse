@@ -24,3 +24,6 @@
 | 2026-07-22T15:14:24Z | agent:kulibin:done | багфикс 004: точная медиана array_agg (fallback плана T3), determinism-тест x3 зелёный, полный pytest 144 passed БЕЗ deselect, build-gold 8.8с |
 | 2026-07-22T15:14:25Z | confidence:stage-3-dev | level=green reason=сам прогнал: pytest 144 passed БЕЗ deselect, ruff clean, determinism x3 (тест+витрина), SELECT маркеров, features 26; units 4/4 |
 | 2026-07-22T15:14:25Z | stage-3-dev:done | - |
+| 2026-07-22T15:14:47Z | stage-4-quality:start | checkpoint=769edbc9c1f0faacf9e7cbf38747b2d55d9fd906 |
+| 2026-07-22T15:14:51Z | agent:qa-verifier:start | адверсарная проверка 007 + багфикса медианы |
+| 2026-07-22T15:27:08Z | agent:qa-verifier:done | PASS проход 1: CRIT 0 WARN 0 INFO 1; ALTER только из _SCHEMA (инъекция не пролезла), sanity-границы инклюзивны, медиана x5 + ручная сверка чёт/нечёт, v035 immutable по sha, 144 passed x2 |
