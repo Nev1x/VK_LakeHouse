@@ -40,6 +40,9 @@ services:
       - pg_data:/var/lib/postgresql/data
       # пред-создание служебных таблиц JDBC-каталога Iceberg (один раз на свежем volume)
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    # 127.0.0.1 only: локальный pgAdmin владельца смотрит каталог (read-only роль loftnav_ro)
+    ports:
+      - "127.0.0.1:5432:5432"
     networks: [data_net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]

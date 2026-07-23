@@ -38,14 +38,24 @@ python -m loftnav.cli build-gold                                  # ~9 сек
 «Квартиры»: цены/площади по районам (12 реальных + 2 демо после нашей вставки) · срезы стиль×ремонт×мебель (пометка малых выборок) ·
 динамика загрузок. Медиана детерминированная (точная — багфикс, вскрытый реальными данными).
 
-## 4. «pgAdmin»: что внутри PostgreSQL (2 мин)
-pgAdmin не ставили, Postgres наружу не выставлен (безопасность). Показ каталога одной командой:
+## 4. pgAdmin: что внутри PostgreSQL (2 мин)
+Подключение локального pgAdmin: host 127.0.0.1, port 5432, база `iceberg_catalog`,
+пользователь `loftnav_ro` — read-only роль (пароль `LOFTNAV_RO_PASSWORD` в .env; порт
+опубликован только на 127.0.0.1, писать в каталог роль не может). Query Tool:
+```sql
+SELECT table_namespace, table_name, substring(metadata_location,1,60) AS metadata
+FROM iceberg_tables ORDER BY 1,2;
+```
+Ключевой слайд: в PostgreSQL НЕТ ни одной квартиры — только каталог-указатели на metadata в
+MinIO. Данные = parquet в MinIO, версии/ACID = Iceberg, SQL = Trino. Это и есть LakeHouse.
+Трюк-свидетель: держи вкладку pgAdmin открытой во время §2 — после transform/build-gold
+перезапусти запрос: `metadata_location` у silver/gold сменился. Каждый коммит Iceberg
+атомарно переставляет указатель — это вся роль Postgres здесь.
+Фолбэк без pgAdmin (тот же запрос из терминала):
 ```bash
 docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "SELECT table_namespace, table_name, substring(metadata_location,1,60) AS metadata FROM iceberg_tables ORDER BY 1,2"
 ```
-Ключевой слайд: в PostgreSQL НЕТ ни одной квартиры — только каталог-указатели на metadata в
-MinIO. Данные = parquet в MinIO, версии/ACID = Iceberg, SQL = Trino. Это и есть LakeHouse.
 
 ## 5. MinIO — http://127.0.0.1:9001 (1.5 мин; креды MINIO_ROOT_* из .env)
 Bucket raw (сырьё, ключ=sha256 — immutable) · warehouse (parquet+metadata Iceberg) ·
