@@ -61,7 +61,9 @@ target_populated:false — честно: метки нет, только при�
 ```bash
 python -m loftnav.cli export-dataset                              # новая версия vNNN
 ```
-```python
+Копируется в терминал целиком (python-heredoc, НЕ построчно в zsh):
+```bash
+python << 'EOF'
 import pandas as pd, boto3, io, os
 s3 = boto3.client("s3", endpoint_url=os.environ["MINIO_ENDPOINT_URL"],
     aws_access_key_id=os.environ["MINIO_ROOT_USER"], aws_secret_access_key=os.environ["MINIO_ROOT_PASSWORD"])
@@ -69,6 +71,7 @@ r = s3.list_objects_v2(Bucket="ml-datasets", Prefix="datasets/", Delimiter="/")
 last = sorted(p["Prefix"] for p in r["CommonPrefixes"])[-1]
 df = pd.read_parquet(io.BytesIO(s3.get_object(Bucket="ml-datasets", Key=last+"data.parquet")["Body"].read()))
 print(df[["district","price_rub","area_m2","ceiling_height_m","wall_material","year_built","is_loft"]].head(8))
+EOF
 ```
 Обычный pandas, платформа не нужна. Лофт-маркеры (потолки/стены/год) — признаки для модели;
 is_loft — заготовка под разметку; версии immutable — эксперименты воспроизводимы.
