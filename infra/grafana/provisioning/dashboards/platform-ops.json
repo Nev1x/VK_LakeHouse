@@ -32,7 +32,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT stage, status, finished_at FROM (SELECT stage, status, finished_at, row_number() OVER (PARTITION BY stage ORDER BY started_at DESC) AS rn FROM iceberg.ops.pipeline_runs WHERE started_at >= $__timeFrom()) WHERE rn = 1 ORDER BY stage"
+          "rawSQL": "SELECT stage, status, finished_at FROM (SELECT stage, status, finished_at, row_number() OVER (PARTITION BY stage ORDER BY started_at DESC) AS rn FROM iceberg.ops.pipeline_runs WHERE started_at >= $__timeFrom()) WHERE rn = 1 ORDER BY stage"
         }
       ]
     },
@@ -61,7 +61,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT stage, date_diff('second', max(finished_at), current_timestamp) AS age_seconds FROM iceberg.ops.pipeline_runs WHERE status = 'success' AND started_at >= $__timeFrom() GROUP BY stage ORDER BY stage"
+          "rawSQL": "SELECT stage, date_diff('second', max(finished_at), current_timestamp) AS age_seconds FROM iceberg.ops.pipeline_runs WHERE status = 'success' AND started_at >= $__timeFrom() GROUP BY stage ORDER BY stage"
         }
       ]
     },
@@ -76,7 +76,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT stage, sum(rows_ok) AS accepted, sum(rows_quarantined) AS rejected FROM iceberg.ops.pipeline_runs WHERE started_at >= $__timeFrom() AND started_at <= $__timeTo() GROUP BY stage ORDER BY stage"
+          "rawSQL": "SELECT stage, sum(rows_ok) AS accepted, sum(rows_quarantined) AS rejected FROM iceberg.ops.pipeline_runs WHERE started_at >= $__timeFrom() AND started_at <= $__timeTo() GROUP BY stage ORDER BY stage"
         }
       ]
     },
@@ -91,7 +91,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT table_name FROM iceberg.information_schema.tables WHERE table_schema = 'quarantine' ORDER BY table_name"
+          "rawSQL": "SELECT table_name FROM iceberg.information_schema.tables WHERE table_schema = 'quarantine' ORDER BY table_name"
         }
       ]
     },
@@ -106,7 +106,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT started_at, run_id, stage, source_file, error_message FROM iceberg.ops.pipeline_runs WHERE status = 'failed' AND started_at >= $__timeFrom() ORDER BY started_at DESC LIMIT 200"
+          "rawSQL": "SELECT started_at, run_id, stage, source_file, error_message FROM iceberg.ops.pipeline_runs WHERE status = 'failed' AND started_at >= $__timeFrom() ORDER BY started_at DESC LIMIT 200"
         }
       ]
     }

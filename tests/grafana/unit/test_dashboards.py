@@ -26,10 +26,14 @@ def _iter_datasource_refs(dash: dict):
 
 
 def _iter_sql(dash: dict):
+    # ключ строго rawSQL: фронтенд trino-плагина подставляет переменные только в это поле;
+    # Go-бэкенд читает JSON без учёта регистра, поэтому rawSql «работал»,
+    # но ${var} уезжал в Trino сырым
     for panel in dash.get("panels", []):
         for t in panel.get("targets", []):
-            if t.get("rawSql"):
-                yield panel["title"], t["rawSql"]
+            assert "rawSql" not in t, f"{panel['title']}: rawSql → rawSQL (интерполяция)"
+            if t.get("rawSQL"):
+                yield panel["title"], t["rawSQL"]
 
 
 @pytest.mark.parametrize("name", _FILES)

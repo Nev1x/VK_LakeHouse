@@ -44,7 +44,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT district, listing_count, avg_price_rub, median_price_rub, min_price_rub, max_price_rub, avg_price_per_m2, avg_area_m2 FROM iceberg.gold.mart_price_area_by_district WHERE district IN (${district:singlequote}) ORDER BY listing_count DESC"
+          "rawSQL": "SELECT district, listing_count, avg_price_rub, median_price_rub, min_price_rub, max_price_rub, avg_price_per_m2, avg_area_m2 FROM iceberg.gold.mart_price_area_by_district WHERE district IN (${district:singlequote}) ORDER BY listing_count DESC"
         }
       ]
     },
@@ -59,7 +59,7 @@
           "refId": "A",
           "format": 1,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT style_norm, renovation_style_norm, has_renovation, has_furniture, listing_count, avg_price_rub, median_price_rub, avg_area_m2, is_small_sample FROM iceberg.gold.mart_style_renovation_furniture ORDER BY listing_count DESC, style_norm"
+          "rawSQL": "SELECT style_norm, renovation_style_norm, has_renovation, has_furniture, listing_count, avg_price_rub, median_price_rub, avg_area_m2, is_small_sample FROM iceberg.gold.mart_style_renovation_furniture ORDER BY listing_count DESC, style_norm"
         }
       ]
     },
@@ -74,7 +74,7 @@
           "refId": "A",
           "format": 0,
           "datasource": { "type": "trino-datasource", "uid": "${DS_TRINO}" },
-          "rawSql": "SELECT CAST(load_date AS TIMESTAMP) AS time, listings_added, listings_added_cumulative FROM iceberg.gold.mart_listing_dynamics WHERE load_date BETWEEN CAST($__timeFrom() AS DATE) AND CAST($__timeTo() AS DATE) ORDER BY load_date"
+          "rawSQL": "SELECT CAST(load_date AS TIMESTAMP) AS time, listings_added, listings_added_cumulative FROM iceberg.gold.mart_listing_dynamics WHERE load_date BETWEEN CAST($__timeFrom() AS DATE) AND CAST($__timeTo() AS DATE) ORDER BY load_date"
         }
       ]
     }
