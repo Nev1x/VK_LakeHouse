@@ -39,7 +39,7 @@ python -m loftnav.cli build-gold                                  # ~9 сек
 динамика загрузок. Медиана детерминированная (точная — багфикс, вскрытый реальными данными).
 
 ## 4. pgAdmin: что внутри PostgreSQL (2 мин)
-Подключение локального pgAdmin: host 127.0.0.1, port 5432, база `iceberg_catalog`,
+Подключение (настроить до показа): host 127.0.0.1, port 5432, база `iceberg_catalog`,
 пользователь `loftnav_ro` — read-only роль (пароль `LOFTNAV_RO_PASSWORD` в .env; порт
 опубликован только на 127.0.0.1, писать в каталог роль не может). Query Tool:
 ```sql
@@ -48,14 +48,9 @@ FROM iceberg_tables ORDER BY 1,2;
 ```
 Ключевой слайд: в PostgreSQL НЕТ ни одной квартиры — только каталог-указатели на metadata в
 MinIO. Данные = parquet в MinIO, версии/ACID = Iceberg, SQL = Trino. Это и есть LakeHouse.
-Трюк-свидетель: держи вкладку pgAdmin открытой во время §2 — после transform/build-gold
-перезапусти запрос: `metadata_location` у silver/gold сменился. Каждый коммит Iceberg
-атомарно переставляет указатель — это вся роль Postgres здесь.
-Фолбэк без pgAdmin (тот же запрос из терминала):
-```bash
-docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -c "SELECT table_namespace, table_name, substring(metadata_location,1,60) AS metadata FROM iceberg_tables ORDER BY 1,2"
-```
+Трюк-свидетель: вкладку pgAdmin открой ещё ДО §2 и покажи каталог «до». После
+transform/build-gold перезапусти запрос (F5): `metadata_location` у silver/gold сменился
+на глазах. Каждый коммит Iceberg атомарно переставляет указатель — это вся роль Postgres.
 
 ## 5. MinIO — http://127.0.0.1:9001 (1.5 мин; креды MINIO_ROOT_* из .env)
 Bucket raw (сырьё, ключ=sha256 — immutable) · warehouse (parquet+metadata Iceberg) ·
@@ -97,3 +92,5 @@ c.execute('SELECT count(*) FROM iceberg.gold.mart_price_area_by_district'); prin
 - make up падает на pull → корп-VPN; стек уже поднят, up не нужен (или `docker compose up -d --wait`).
 - Панель Grafana в ошибке → Trino прогревается, обновить через 30 сек.
 - Терминал «завис» на make → тихая проверка зависимостей ~5 сек, подождать.
+- pgAdmin не подключается → тот же запрос из терминала:
+  `docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT table_namespace, table_name, substring(metadata_location,1,60) FROM iceberg_tables ORDER BY 1,2"`.
