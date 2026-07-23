@@ -14,3 +14,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# --- харнес агентов: живёт только локально, в git/GitHub не попадает (решение владельца 2026-07-23) ---
+
+Product_agents/
+AGENTS.md
