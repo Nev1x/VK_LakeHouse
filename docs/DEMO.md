@@ -9,9 +9,25 @@
 данные наружу не уходят. Слои: raw → bronze → silver → gold (медальон).
 Стек: MinIO + PostgreSQL (JDBC-каталог Iceberg) + Trino + Grafana, Docker Compose.
 
-## 1. Живые данные (2 мин)
-Загружено 6050 реальных объявлений из трёх форматов: CSV 3000 + Excel 3000 + JSON 50
-(урезанная схема). Один загрузчик, схема выведена автоматически, Excel-лист стал источником сам.
+## 1. Живые данные — работа с реальными файлами (3.5 мин)
+Исходники лежат в data-in/: CSV 3000 строк + JSON 3000 (те же квартиры) + Excel 3000 +
+урезанный JSON 50. Один загрузчик, схема выведена автоматически, Excel-лист стал источником сам.
+```bash
+ls -lh data-in/                                # вот они: три файла-трёхтысячника + сэмпл
+make ingest FILE=data-in/apartments_full.csv   # [skipped] hash-match-success — 3000 строк уже
+                                               # приняты, файл узнан по sha256 (идемпотентность)
+python -m loftnav.cli transform --reprocess apartments   # переиграть очистку ВЖИВУЮ: ~50 сек
+```
+Пока крутится reprocess, рассказать: сейчас 6000 строк (CSV + JSON) заново проходят все
+правила очистки — типы, диапазоны, дедупликация. Итог: `[success] ok=6000 quarantined=0
+partitions=2`. В silver при этом 3000: CSV и JSON содержат одни и те же квартиры, слияние
+по id дедуплицирует — «последняя версия объявления побеждает». Проверка расклада:
+```bash
+python -c "from loftnav.trino_client import get_connection; c=get_connection().cursor(); \
+c.execute(\"SELECT source, count(*) FROM iceberg.silver.apartments_clean GROUP BY 1 ORDER BY 2 DESC\"); \
+[print(r) for r in c.fetchall()]"
+```
+→ apartments 3000 · apartments_apartments 3000 · apartments_lite 50 = **6050 реальных квартир**.
 
 ## 2. Приём «кривого» файла вживую (3 мин)
 ```bash

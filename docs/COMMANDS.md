@@ -178,6 +178,32 @@ python -m loftnav.cli build-gold
 Удаляет демо-строки из silver, чистит их карантин, пересчитывает витрины.
 **Сработало:** в build-gold снова `rows_ok=12` районов и `rows_ok=6050` квартир.
 
+## 14. Реальные файлы проекта (data-in/) и переигровка источника
+
+Исходники на 3000 строк лежат в `data-in/` и уже загружены в платформу
+(CSV+JSON → источник `apartments`, XLSX → `apartments_apartments`, сэмпл → `apartments_lite`).
+
+```bash
+ls -lh data-in/                                # показать исходники и размеры
+make ingest FILE=data-in/apartments_full.csv   # повторный приём 3000-строчного файла
+python -m loftnav.cli transform --reprocess apartments   # переиграть очистку источника, ~50 сек
+```
+- `make ingest FILE=…` — тот же ingest, что и для demo.csv, просто через Make.
+  **Сработало:** `[skipped] reason=hash-match-success` — файл на 3000 строк платформа уже
+  приняла и узнала по отпечатку; дубликатов не будет.
+- `--reprocess apartments` — «сотри результат очистки этого источника и почисти заново
+  все его файлы». 6000 строк (CSV + JSON) заново проходят типы/диапазоны/дедупликацию.
+  **Сработало:** `[success] ok=6000 quarantined=0 partitions=2` (две партиции — CSV и JSON).
+  В silver останется 3000 — CSV и JSON содержат одни и те же квартиры, слияние по id
+  дедуплицирует.
+- Расклад по источникам в silver:
+```bash
+python -c "from loftnav.trino_client import get_connection; c=get_connection().cursor(); \
+c.execute(\"SELECT source, count(*) FROM iceberg.silver.apartments_clean GROUP BY 1 ORDER BY 2 DESC\"); \
+[print(r) for r in c.fetchall()]"
+```
+**Сработало:** apartments 3000 · apartments_apartments 3000 · apartments_lite 50 = 6050.
+
 ---
 
 Рефрен: у каждой команды в последней строке — **статус** («получилось ли») и **счётчики**
