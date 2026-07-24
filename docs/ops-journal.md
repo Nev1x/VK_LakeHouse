@@ -9,3 +9,4 @@ DORA-события: `deploy:start|done|failed` · `incident:open|resolved <slug
 | 2026-07-24T08:04:24Z | deploy:failed | sha=f3c807d73f7ed07dbac8762a5559c8e532b1c558 rc=1 |
 | 2026-07-24T08:06:49Z | deploy:done | sha=a74c2125ae32634cac546eb1faa08b9841f5fc81 rc=0 |
 | 2026-07-24T08:10:42Z | deploy:done | sha=64d27df21858d379a56fb5fab0bdf700c2fec7ac rc=0 |
+| 2026-07-24T08:19:58Z | deploy:done | sha=4313fc64012e0ade7f8e6678f977b6f13693995c rc=0 |
